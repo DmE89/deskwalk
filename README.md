@@ -1,19 +1,25 @@
 # deskwalk
 
 Minimal web controller for the Kingsmith WalkingPad A1 Pro. A small Python server talks to the
-belt via Bluetooth, the browser shows the UI. Works on a laptop and on a phone in the same Wi-Fi.
+belt via Bluetooth, the browser shows the UI. Works on a laptop and on a phone in the same Wi-Fi,
+in any browser (Firefox, Safari, Chrome, Brave).
+
+Not an official project. No affiliation with Kingsmith or WalkingPad.
 
 - Live speed, time, distance, steps, calories and cadence
 - Start, stop, speed buttons and slider, quick speeds, meeting and pause buttons
-- Sessions with history, daily goal ring, streaks and records
+- Sessions with history, daily goal ring, streaks, year heat map and records
 - Interval programs, step calibration, CSV and TCX export
-- Belt settings (smart start/stop, sensitivity, child lock, start and max speed)
+- Belt settings: smart start/stop, sensitivity, child lock, start and max speed
 - Movement reminder, maintenance counter for oiling
 - English or German, metric or imperial, system, dark or light theme
+- Installable on the phone home screen
 
-No JavaScript libraries, no web fonts, no build step. The only dependency is `bleak`.
+No JavaScript libraries, no build step, no external requests. The only dependency is `bleak`.
 
 ## Start
+
+Python 3.10 or newer.
 
 ```bash
 python3 -m venv .venv
@@ -22,47 +28,74 @@ python3 -m venv .venv
 ```
 
 Open <http://127.0.0.1:5000>. On the phone use the Wi-Fi address that the server prints.
-Switch the belt on and disconnect the phone app first; the belt accepts only one Bluetooth connection.
+Switch the belt on and disconnect the phone app first, the belt accepts only one Bluetooth connection.
 
 Without a belt: `python3 server.py --sim` runs a simulated belt (no `bleak` needed).
 
 Options: `--host 127.0.0.1` (this computer only), `--port`, `--data`, `--address` (skip the scan).
 
-**Note:** anyone in your network can control the belt while the server listens on `0.0.0.0`.
-Use `--host 127.0.0.1` if you do not want that.
+Anyone in your network can control the belt while the server listens on `0.0.0.0`.
+Use `--host 127.0.0.1` if you do not want that. Other websites cannot send commands:
+the server accepts only same-origin JSON requests and checks the `Host` header.
+
+## Keep walking after stepping off
+
+Set *Smart start/stop* to *Off* in the settings and walk in manual mode. If the belt still stops,
+*Keep running* restarts it at the last speed (at most 3 times per minute). A stop from the remote
+control then restarts the belt as well, so stop it from the app or with the space bar.
 
 ## Keys
 
 | Key | Action |
 |---|---|
 | Space | start / stop |
-| ↑ / ↓ | speed ± 0.1 |
+| Up / Down | speed plus or minus 0.1 |
 | M | meeting speed, press again for the previous speed |
 | P | pause, press again to continue at the same speed |
-
-## Keep walking after stepping off
-
-Set *Smart start/stop* to *Off* in the settings. If the belt still stops, *Keep running*
-restarts it at the last speed (at most 3 times per minute). A stop from the remote control
-then restarts the belt as well, so stop it from the app or with the space bar.
 
 ## Data
 
 Everything is stored in `data.json` next to `server.py` (git-ignored), log lines go to `deskwalk.log`.
 A session starts when the belt starts moving and ends after 2 minutes of standstill. If the
-Bluetooth connection drops, the session continues after reconnecting.
+Bluetooth connection drops, the session continues after reconnecting. An unreadable `data.json`
+is kept as `data.json.broken-<time>` and the app starts empty.
 
 Browser notifications for the movement reminder need `http://127.0.0.1` or HTTPS. On a phone
 using the Wi-Fi address the reminder shows inside the page instead.
 
+## Project layout
+
+```
+server.py            entry point
+deskwalk/            Python package
+  protocol.py        Bluetooth frames, see PROTOCOL.md
+  links.py           bleak link and simulated belt
+  worker.py          Bluetooth thread, command queue, reconnect
+  sessions.py        sessions, goal, streaks, records
+  store.py           data.json
+  settings.py        validation of settings from the UI
+  web.py             HTTP server, security headers, static files
+  fitness.py, logs.py
+web/                 browser UI
+  index.html
+  css/               tokens, base, layout, components, views, responsive
+  js/                ES modules, one per view
+  assets/icons, assets/fonts
+tests/
+```
+
 ## Development
 
 ```bash
-python3 test_protocol.py
+python3 -m unittest discover -s tests
 ```
 
-The Bluetooth protocol is described in [PROTOCOL.md](PROTOCOL.md).
+The Bluetooth protocol is described in [PROTOCOL.md](PROTOCOL.md). The byte layout comes from
+[ph4-walkingpad](https://github.com/ph4r05/ph4-walkingpad) by Dusan Klinec (MIT), thank you.
+
+Tested with the A1 Pro on Linux. Reports about other models and systems are welcome.
 
 ## Licence
 
-GPL-3.0, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). Fonts: Inter and JetBrains Mono, SIL Open Font License,
+see `web/assets/fonts/`.

@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0D10">
+<meta name="color-scheme" content="dark light">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex">
+<title>deskwalk</title>
+<link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="assets/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/JetBrainsMonoVariable.woff2" as="font" type="font/woff2" crossorigin>
+<script src="js/theme-init.js"></script>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/views.css">
+<link rel="stylesheet" href="css/responsive.css">
+<script type="module" src="js/main.js"></script>
+</head>
+<body class="preload">
+<a class="skip-link" href="#main" data-i18n="skip_to_content"></a>
+
+<div class="app">
+  <nav class="sidebar" data-i18n-aria="main_navigation">
+    <div class="brand"><img src="assets/icons/favicon.svg" alt="" width="24" height="24">deskwalk</div>
+    <button type="button" class="nav-btn" data-view="training"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-train"/></svg><span data-i18n="nav_training"></span></button>
+    <button type="button" class="nav-btn" data-view="history"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-hist"/></svg><span data-i18n="nav_history"></span></button>
+    <button type="button" class="nav-btn" data-view="records"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-rec"/></svg><span data-i18n="nav_records"></span></button>
+    <button type="button" class="nav-btn" data-view="programs"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-prog"/></svg><span data-i18n="nav_programs"></span></button>
+    <button type="button" class="nav-btn" data-view="settings"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-set"/></svg><span data-i18n="nav_settings"></span></button>
+    <button type="button" class="nav-btn" data-view="status"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-stat"/></svg><span data-i18n="nav_status"></span></button>
+    <div class="foot" id="keysHint"></div>
+  </nav>
+
+  <div class="page">
+    <header class="topbar">
+      <div class="conn" role="status" aria-live="polite"><span class="dot" id="dot" aria-hidden="true"></span><span class="conn-text" id="connText"></span></div>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="mode-label" id="modeLabel">-</span>
+      <span class="badge badge-sim hidden" id="simBadge" data-i18n="simulation"></span>
+      <div class="right">
+        <span class="clock num" id="clock">--:--</span>
+        <button type="button" class="icon-btn" id="themeBtn"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-auto"/></svg></button>
+      </div>
+    </header>
+
+    <div class="banner" id="banner" role="alert"><span class="grow" id="bannerText"></span><button type="button" class="btn small" id="bannerBtn" data-i18n="connect"></button></div>
+
+    <main id="main" tabindex="-1">
+    <!-- training -->
+    <section class="view" id="view-training" aria-labelledby="h-training">
+      <h1 class="sr-only" id="h-training" data-i18n="nav_training"></h1>
+      <div class="training">
+        <div class="stack">
+          <div class="card hero" id="hero">
+            <div class="ring-wrap">
+              <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+                <circle class="track" cx="100" cy="100" r="94"/>
+                <circle class="prog" id="ringProg" cx="100" cy="100" r="94" stroke-dasharray="590.6" stroke-dashoffset="590.6"/>
+              </svg>
+              <div class="ring-center">
+                <div class="speed" id="speed" aria-hidden="true">0.0</div>
+                <div class="unit" id="speedUnit" aria-hidden="true"></div>
+                <div class="target" id="target"></div>
+              </div>
+            </div>
+            <div class="goal-line">
+              <span><span data-i18n="daily_goal"></span> <b class="num" id="goalCur">0</b> / <b class="num" id="goalMax">0</b> <span id="goalUnit"></span></span>
+              <span><b class="num" id="goalPct">0 %</b></span>
+              <span><span data-i18n="streak"></span> <b class="num" id="streakNum">0</b> <span id="streakUnit"></span></span>
+            </div>
+            <div class="session-line" id="sessionLine"></div>
+          </div>
+
+          <div class="tiles">
+            <div class="card tile"><div class="label" data-i18n="time"></div><div class="value" id="tTime">0:00:00</div><div class="sub" id="tTimeSub"></div></div>
+            <div class="card tile"><div class="label" data-i18n="distance"></div><div class="value" id="tDist">0.00</div><div class="sub" id="tDistSub"></div></div>
+            <div class="card tile"><div class="label" data-i18n="steps"></div><div class="value" id="tSteps">0</div><div class="sub" id="tStepsSub"></div></div>
+            <div class="card tile"><div class="label" data-i18n="calories"></div><div class="value" id="tKcal">0</div><div class="sub" id="tKcalSub"></div></div>
+          </div>
+
+          <div class="card controls">
+            <div class="ctrl-row">
+              <button type="button" class="round step" id="minus" data-i18n-aria="slower"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-minus"/></svg></button>
+              <button type="button" class="round go" id="startStop"><span id="startStopText"></span></button>
+              <button type="button" class="round step" id="plus" data-i18n-aria="faster"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-plus"/></svg></button>
+            </div>
+            <div class="slider-box">
+              <input type="range" id="slider" step="0.1" data-i18n-aria="speed">
+              <div class="slider-scale" aria-hidden="true"><span id="sliderMin"></span><b id="sliderVal"></b><span id="sliderMax"></span></div>
+            </div>
+            <div class="quick" id="quick">
+              <button type="button" class="chip num" data-quick="0" aria-pressed="false"></button>
+              <button type="button" class="chip num" data-quick="1" aria-pressed="false"></button>
+              <button type="button" class="chip num" data-quick="2" aria-pressed="false"></button>
+              <button type="button" class="chip num" data-quick="3" aria-pressed="false"></button>
+              <button type="button" class="chip" id="meetingBtn" aria-pressed="false"></button>
+              <button type="button" class="chip" id="pauseBtn" aria-pressed="false"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card chart-card">
+            <div class="card-head">
+              <h2 class="card-title" data-i18n="current_session"></h2>
+              <div class="legend" aria-hidden="true"><span><i></i><span data-i18n="speed"></span></span><span><i class="alt"></i><span data-i18n="cadence"></span></span></div>
+            </div>
+            <div class="chart-wrap"><svg class="chart" id="chart" role="img" data-i18n-aria="chart_label"></svg><div class="chart-empty" id="chartEmpty" data-i18n="no_session"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="interval_program"></h2><button type="button" class="btn small" data-goto="programs" data-i18n="edit"></button></div>
+            <div id="progIdle">
+              <div class="row-gap flush">
+                <select id="progSelect" data-i18n-aria="program"></select>
+                <button type="button" class="btn primary" id="progStart" data-i18n="start_program"></button>
+              </div>
+              <p class="hint mt-2" id="progInfo"></p>
+            </div>
+            <div id="progActive" class="hidden">
+              <div class="prog-name" id="progName"></div>
+              <div class="prog-meta"><span id="progStep"></span><span class="num" id="progTotal"></span></div>
+              <div class="prog-meta center"><span class="prog-big num" id="progRemain">0:00</span><span class="num" id="progSpeed"></span></div>
+              <div class="segbar" id="progBar" aria-hidden="true"></div>
+              <div class="row-gap end"><button type="button" class="btn danger" id="progStop" data-i18n="end_program"></button></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="today"></h2></div>
+            <div class="mini-stats">
+              <div><span data-i18n="distance"></span><b class="num" id="dDist">0</b></div>
+              <div><span data-i18n="steps"></span><b class="num" id="dSteps">0</b></div>
+              <div><span data-i18n="active_time"></span><b class="num" id="dTime">0:00</b></div>
+              <div><span data-i18n="sessions"></span><b class="num" id="dSessions">0</b></div>
+            </div>
+          </div>
+
+          <div class="card hidden" id="oilCard">
+            <div class="notice"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-oil"/></svg><p><strong data-i18n="oil_belt"></strong> <span id="oilText"></span></p></div>
+            <div class="row-gap end"><button type="button" class="btn small" id="oiledBtn2" data-i18n="done"></button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- history -->
+    <section class="view" id="view-history">
+      <div class="view-head"><h1 data-i18n="nav_history"></h1><span class="muted num" id="histSum"></span></div>
+      <div class="stack">
+        <div class="card"><div class="card-head"><h2 class="card-title" id="barsTitle"></h2></div><svg class="bars" id="bars" role="img"></svg></div>
+        <div class="card">
+          <div class="card-head"><h2 class="card-title" data-i18n="last_year"></h2><span class="muted num" id="heatSum"></span></div>
+          <div class="heat-scroll" id="heatScroll" tabindex="0"><div class="heat" id="heat"></div></div>
+          <div class="heat-legend" aria-hidden="true"><span data-i18n="less"></span><i></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i class="l4"></i><span data-i18n="more"></span></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2 class="card-title" data-i18n="sessions"></h2></div>
+          <table id="sessTable">
+            <thead><tr><th data-i18n="date"></th><th class="n" data-i18n="duration"></th><th class="n" id="thDist"></th><th class="n hide-s" data-i18n="steps"></th><th class="n hide-s">kcal</th><th class="n hide-s" id="thAvg"></th><th><span class="sr-only" data-i18n="actions"></span></th></tr></thead>
+            <tbody id="sessionRows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- records -->
+    <section class="view" id="view-records">
+      <div class="view-head"><h1 data-i18n="nav_records"></h1></div>
+      <div class="records" id="records"></div>
+    </section>
+
+    <!-- programs -->
+    <section class="view" id="view-programs">
+      <div class="view-head"><h1 data-i18n="interval_programs"></h1><button type="button" class="btn primary" id="progNew" data-i18n="new_program"></button></div>
+      <div class="card editor hidden" id="progEditor">
+        <div class="card-head"><h2 class="card-title" id="progEditorTitle"></h2></div>
+        <div class="field first"><label for="peName" class="hint" data-i18n="name"></label><input type="text" id="peName" maxlength="40" autocomplete="off"></div>
+        <div class="seg-rows" id="peRows"></div>
+        <div class="row-gap"><button type="button" class="btn" id="peAdd" data-i18n="add_segment"></button><span class="muted num editor-total" id="peTotal"></span></div>
+        <div class="row-gap end"><button type="button" class="btn" id="peCancel" data-i18n="cancel"></button><button type="button" class="btn primary" id="peSave" data-i18n="save"></button></div>
+      </div>
+      <div class="programs" id="programList"></div>
+    </section>
+
+    <!-- settings -->
+    <section class="view" id="view-settings">
+      <div class="view-head"><h1 data-i18n="nav_settings"></h1></div>
+      <div class="grid2">
+        <div class="stack">
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="display"></h2></div>
+            <div class="field first"><div class="field-head"><strong id="lblLang" data-i18n="language"></strong></div>
+              <div class="seg" id="langSeg" role="group" aria-labelledby="lblLang"><button type="button" data-value="en" lang="en">English</button><button type="button" data-value="de" lang="de">Deutsch</button></div></div>
+            <div class="field"><div class="field-head"><strong id="lblUnits" data-i18n="units"></strong></div>
+              <div class="seg" id="unitSeg" role="group" aria-labelledby="lblUnits"><button type="button" data-value="metric" data-i18n="metric"></button><button type="button" data-value="imperial" data-i18n="imperial"></button></div></div>
+            <div class="field"><div class="field-head"><strong id="lblTheme" data-i18n="theme"></strong></div>
+              <div class="seg" id="themeSeg" role="group" aria-labelledby="lblTheme"><button type="button" data-value="system" data-i18n="theme_system"></button><button type="button" data-value="dark" data-i18n="theme_dark"></button><button type="button" data-value="light" data-i18n="theme_light"></button></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="belt"></h2><em class="hint" data-i18n="belt_prefs_hint"></em></div>
+            <div class="field first">
+              <div class="field-head"><strong id="lblInteli" data-i18n="smart_start"></strong><em id="pv-inteli"></em></div>
+              <div class="seg" data-pref="inteli" role="group" aria-labelledby="lblInteli"><button type="button" data-value="false" data-i18n="off"></button><button type="button" data-value="true" data-i18n="on"></button></div>
+              <p class="hint" data-i18n="smart_start_hint"></p>
+            </div>
+            <div class="field">
+              <div class="field-head"><strong id="lblSens" data-i18n="sensitivity"></strong><em id="pv-sensitivity"></em></div>
+              <div class="seg" data-pref="sensitivity" role="group" aria-labelledby="lblSens"><button type="button" data-value="3" data-i18n="low"></button><button type="button" data-value="2" data-i18n="medium"></button><button type="button" data-value="1" data-i18n="high"></button></div>
+            </div>
+            <div class="field">
+              <div class="field-head"><strong id="lblLock" data-i18n="child_lock"></strong><em id="pv-child_lock"></em></div>
+              <div class="seg" data-pref="child_lock" role="group" aria-labelledby="lblLock"><button type="button" data-value="false" data-i18n="off"></button><button type="button" data-value="true" data-i18n="on"></button></div>
+            </div>
+            <div class="field">
+              <div class="field-head"><label for="startSpeed" id="lblStartSpeed"></label><em id="pv-start_speed"></em></div>
+              <div class="inline"><input type="number" id="startSpeed" step="0.1" inputmode="decimal"><button type="button" class="btn" data-send="start_speed" data-input="startSpeed" data-i18n="send"></button></div>
+            </div>
+            <div class="field">
+              <div class="field-head"><label for="maxSpeed" id="lblMaxSpeed"></label><em id="pv-max_speed"></em></div>
+              <div class="inline"><input type="number" id="maxSpeed" step="0.1" inputmode="decimal"><button type="button" class="btn" data-send="max_speed" data-input="maxSpeed" data-i18n="send"></button></div>
+            </div>
+            <div class="row-gap"><button type="button" class="btn" id="applyPrefs" data-i18n="resend_prefs"></button></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="behaviour"></h2></div>
+            <label class="switch first"><input type="checkbox" data-config="keep_running"><span class="track" aria-hidden="true"></span>
+              <span><b data-i18n="keep_running"></b><small data-i18n="keep_running_hint"></small><small class="danger" data-i18n="keep_running_warn"></small></span></label>
+            <label class="switch"><input type="checkbox" data-config="auto_reconnect"><span class="track" aria-hidden="true"></span>
+              <span><b data-i18n="auto_reconnect"></b><small data-i18n="auto_reconnect_hint"></small></span></label>
+            <label class="switch"><input type="checkbox" data-config="apply_on_connect"><span class="track" aria-hidden="true"></span>
+              <span><b data-i18n="apply_on_connect"></b><small data-i18n="apply_on_connect_hint"></small></span></label>
+            <label class="switch"><input type="checkbox" data-config="restore_speed"><span class="track" aria-hidden="true"></span>
+              <span><b data-i18n="restore_speed"></b><small data-i18n="restore_speed_hint"></small></span></label>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="body_goal"></h2></div>
+            <div class="field first"><div class="field-head"><label for="weight" id="lblWeight"></label><em data-i18n="for_calories"></em></div><input type="number" id="weight" step="0.5" inputmode="decimal"></div>
+            <div class="field">
+              <div class="field-head"><strong id="lblGoal" data-i18n="daily_goal"></strong></div>
+              <div class="seg" id="goalType" role="group" aria-labelledby="lblGoal"><button type="button" data-value="steps" data-i18n="steps"></button><button type="button" data-value="km" id="goalTypeDist"></button></div>
+              <input type="number" id="goalValue" step="any" inputmode="decimal" data-i18n-aria="goal_value">
+            </div>
+            <div class="field"><div class="field-head"><label for="meetingSpeed" id="lblMeeting"></label></div><input type="number" id="meetingSpeed" step="0.1" inputmode="decimal"></div>
+            <div class="row-gap end"><button type="button" class="btn primary" id="saveBody" data-i18n="save"></button></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="step_calibration"></h2><span class="hint num" id="strideNow"></span></div>
+            <p class="hint" data-i18n="calibration_hint"></p>
+            <div class="cal-list" id="calList"></div>
+            <div class="row-gap end"><button type="button" class="btn primary" id="calOpen" data-i18n="calibrate"></button></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="move_reminder"></h2></div>
+            <label class="switch first"><input type="checkbox" id="remEnabled"><span class="track" aria-hidden="true"></span>
+              <span><b data-i18n="reminder_switch"></b><small id="remPerm"></small></span></label>
+            <div class="field"><div class="field-head"><label for="remMinutes" data-i18n="reminder_minutes"></label></div>
+              <div class="inline"><input type="number" id="remMinutes" min="5" max="600" step="5" inputmode="numeric"><button type="button" class="btn" id="remSave" data-i18n="save"></button></div></div>
+            <div class="row-gap"><button type="button" class="btn" id="remAsk" data-i18n="allow_notifications"></button><button type="button" class="btn" id="remTest" data-i18n="test"></button></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="maintenance"></h2><span class="hint num" id="beltKm"></span></div>
+            <div class="field first"><div class="field-head"><strong data-i18n="since_oiling"></strong><em class="num" id="oilSince"></em></div><div class="meter" id="oilMeter"><i></i></div></div>
+            <div class="field"><div class="field-head"><label for="oilInterval" id="lblOil"></label></div>
+              <div class="inline"><input type="number" id="oilInterval" min="0" step="10" inputmode="decimal"><button type="button" class="btn" id="oilSave" data-i18n="save"></button></div></div>
+            <div class="field"><div class="field-head"><label for="beltKmInput" id="lblBeltKm"></label></div>
+              <div class="inline"><input type="number" id="beltKmInput" min="0" step="0.1" inputmode="decimal"><button type="button" class="btn" id="beltKmSave" data-i18n="apply"></button></div></div>
+            <div class="row-gap end"><button type="button" class="btn primary" id="oiledBtn" data-i18n="oiled_now"></button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- status -->
+    <section class="view" id="view-status">
+      <div class="view-head"><h1 data-i18n="nav_status"></h1></div>
+      <div class="grid2">
+        <div class="stack">
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="connection"></h2></div>
+            <dl class="kv" id="statusKv"></dl>
+            <div class="row-gap"><button type="button" class="btn primary" id="connBtn"></button><button type="button" class="btn" id="forgetBtn" data-i18n="forget_device"></button></div>
+          </div>
+          <div class="card"><div class="card-head"><h2 class="card-title" data-i18n="events"></h2></div><pre class="log wrap" id="events"></pre></div>
+        </div>
+        <div class="card"><div class="card-head"><h2 class="card-title" data-i18n="log_title"></h2><span class="hint num">deskwalk.log</span></div><pre class="log" id="log" tabindex="0"></pre></div>
+      </div>
+    </section>
+    </main>
+  </div>
+</div>
+
+<nav class="tabbar" data-i18n-aria="main_navigation">
+  <button type="button" class="nav-btn" data-view="training"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-train"/></svg><span data-i18n="nav_training"></span></button>
+  <button type="button" class="nav-btn" data-view="history"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-hist"/></svg><span data-i18n="nav_history"></span></button>
+  <button type="button" class="nav-btn" data-view="records"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-rec"/></svg><span data-i18n="nav_records"></span></button>
+  <button type="button" class="nav-btn" data-view="programs"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-prog"/></svg><span data-i18n="nav_programs"></span></button>
+  <button type="button" class="nav-btn" data-view="settings"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-set"/></svg><span data-i18n="nav_settings_short"></span></button>
+  <button type="button" class="nav-btn" data-view="status"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-stat"/></svg><span data-i18n="nav_status"></span></button>
+</nav>
+
+<div class="overlay" id="calDialog">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="calTitle">
+    <h2 id="calTitle" data-i18n="calibrate_steps"></h2>
+    <div id="calStep1">
+      <p data-i18n="cal_intro"></p>
+      <div class="field plain"><div class="field-head"><label for="calSpeed" id="lblCalSpeed"></label></div><input type="number" id="calSpeed" step="0.1" inputmode="decimal"></div>
+    </div>
+    <div id="calStep2" class="hidden"><p id="calHint" aria-live="polite"></p><div class="countdown" id="calCount">60</div><div class="meter"><i id="calMeter"></i></div></div>
+    <div id="calStep3" class="hidden">
+      <p id="calDone"></p>
+      <div class="field plain"><div class="field-head"><label for="calSteps" data-i18n="counted_steps"></label></div><input type="number" id="calSteps" min="10" max="400" step="1" inputmode="numeric"></div>
+    </div>
+    <div class="actions"><button type="button" class="btn" id="calCancel" data-i18n="cancel"></button><button type="button" class="btn primary" id="calNext"></button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,101 @@
+/* Breakpoints: 1360 wide laptop, 1180 laptop and tablet landscape, 900 tablet portrait, 600 phone, 380 small phone */
+@media (max-width: 1360px) {
+  .training { grid-template-columns: minmax(0, 1fr) 360px; }
+}
+
+@media (max-width: 1180px) {
+  .training { grid-template-columns: minmax(0, 1fr); }
+  .records { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .training > .stack:last-child { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .training > .stack:last-child > .chart-card { grid-column: 1 / -1; }
+}
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { display: none; }
+  .page { padding: 0 var(--s2) calc(76px + env(safe-area-inset-bottom)); }
+  .topbar {
+    margin: 0 calc(-1 * var(--s2)) var(--s2);
+    padding: 0 var(--s2);
+    padding-top: env(safe-area-inset-top);
+    height: calc(var(--topbar) + env(safe-area-inset-top));
+    gap: 12px;
+  }
+  .grid2, .programs { grid-template-columns: minmax(0, 1fr); }
+  .tabbar {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+  }
+  .tabbar .nav-btn { flex-direction: column; height: 56px; gap: 4px; padding: 6px 0; font-size: 11px; justify-content: center; box-shadow: none; background: none; min-width: 0; }
+  .tabbar .nav-btn[aria-current="page"] { color: var(--accent-text); }
+  .tabbar .nav-btn span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+@media (max-width: 700px) {
+  .training > .stack:last-child { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .card { padding: var(--s2); }
+  .stack, .grid2, .records, .programs { gap: var(--s2); }
+  .hero { padding: var(--s3) var(--s2) var(--s2); }
+  .ring-wrap { width: min(260px, 72vw); }
+  .speed { font-size: clamp(72px, 22vw, 96px); }
+  .goal-line { margin-top: var(--s2); }
+  /* on a phone the controls come right after the speed, the tiles below */
+  .training > .stack:first-child > .hero { order: 1; }
+  .training > .stack:first-child > .controls { order: 2; }
+  .training > .stack:first-child > .tiles { order: 3; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tile { padding: 12px var(--s2) var(--s2); }
+  .controls { gap: var(--s2); }
+  .ctrl-row { gap: var(--s3); }
+  .round.go { width: 112px; height: 112px; }
+  .round.step { width: 64px; height: 64px; }
+  .quick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .records { grid-template-columns: minmax(0, 1fr); }
+  .record .big { font-size: 34px; }
+  .badge-sim { display: none; }
+  .topbar .right { gap: 8px; }
+  .view-head { margin-bottom: var(--s2); }
+  .view-head h1 { font-size: 20px; }
+  .hide-s { display: none; }
+  .countdown { font-size: 80px; }
+  .log { white-space: pre-wrap; word-break: break-word; }
+  .kv dd { white-space: normal; word-break: break-word; }
+  .chart { height: 200px; }
+  #sessTable thead { display: none; }
+  #sessTable tr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  #sessTable tr:last-child { border-bottom: 0; }
+  #sessTable td { height: auto; border: 0; padding: 0; white-space: normal; }
+  #sessTable td.act { grid-column: 1 / -1; text-align: left; margin-top: var(--s1); }
+  #sessTable td.act .btn { margin: 0 var(--s1) 0 0; }
+  #sessTable td.empty { grid-column: 1 / -1; }
+  .seg-row { grid-template-columns: 20px minmax(0, 1fr) minmax(0, 1fr) 40px; }
+}
+
+@media (max-width: 380px) {
+  .page { padding-left: 12px; padding-right: 12px; }
+  .topbar { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; }
+  .mode-label, .topbar .sep { display: none; }
+  .ctrl-row { gap: var(--s2); }
+  .round.go { width: 104px; height: 104px; font-size: 16px; }
+  .round.step { width: 56px; height: 56px; }
+  .tabbar .nav-btn { font-size: 10px; }
+  .goal-line { gap: 4px var(--s2); font-size: 13px; }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .ring-wrap { width: min(260px, 100%); }
+  .speed { font-size: 84px; }
+}

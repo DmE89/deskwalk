@@ -1,0 +1,80 @@
+/* Design tokens. Dark is the default, light via data-theme or the system setting. */
+:root {
+  --s1: 8px;
+  --s2: 16px;
+  --s3: 24px;
+  --s4: 32px;
+  --s5: 40px;
+  --radius: 16px;
+  --radius-s: 12px;
+  --radius-xs: 10px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --t: 200ms;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --sidebar: 232px;
+  --topbar: 56px;
+  --tap: 44px;
+
+  --bg: #0B0D10;
+  --card: #14171C;
+  --card-2: #1A1E24;
+  --line: #22262D;
+  --line-2: #2E343D;
+  --text: #E9EDF2;
+  --muted: #9AA3AE;
+  --faint: #7D8691;
+  --accent: #3DDC84;
+  --accent-text: #3DDC84;
+  --accent-ink: #04140B;
+  --accent-soft: rgba(61, 220, 132, .12);
+  --danger: #F2564F;
+  --danger-text: #FF6F68;
+  --danger-ink: #1E0505;
+  --danger-soft: rgba(242, 86, 79, .12);
+  --heat-0: #1A1E24;
+  --overlay: rgba(0, 0, 0, .6);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #F3F4F6;
+  --card: #FFFFFF;
+  --card-2: #F1F3F5;
+  --line: #E1E4E9;
+  --line-2: #CDD2DA;
+  --text: #0B0D10;
+  --muted: #535C68;
+  --faint: #67707C;
+  --accent-text: #0F7A41;
+  --accent-soft: rgba(61, 220, 132, .18);
+  --danger: #D93A33;
+  --danger-text: #B42B25;
+  --danger-ink: #FFFFFF;
+  --danger-soft: rgba(217, 58, 51, .10);
+  --heat-0: #E6E9ED;
+  --overlay: rgba(11, 13, 16, .45);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    --bg: #F3F4F6;
+    --card: #FFFFFF;
+    --card-2: #F1F3F5;
+    --line: #E1E4E9;
+    --line-2: #CDD2DA;
+    --text: #0B0D10;
+    --muted: #535C68;
+    --faint: #67707C;
+    --accent-text: #0F7A41;
+    --accent-soft: rgba(61, 220, 132, .18);
+    --danger: #D93A33;
+    --danger-text: #B42B25;
+    --danger-ink: #FFFFFF;
+    --danger-soft: rgba(217, 58, 51, .10);
+    --heat-0: #E6E9ED;
+    --overlay: rgba(11, 13, 16, .45);
+    color-scheme: light;
+  }
+}

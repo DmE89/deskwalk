@@ -1,5 +1,6 @@
 data.json
 data.json.tmp
+data.json.broken-*
 *.log
 backup/
 __pycache__/
@@ -16,3 +17,4 @@ Thumbs.db
 CLAUDE.md
 CLAUDE.local.md
 .claude/
+AGENTS.md
