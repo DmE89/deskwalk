@@ -9,11 +9,16 @@ MODE_BY_NAME = {v: k for k, v in MODE_NAMES.items()}
 
 STATE_STOPPED, STATE_RUNNING, STATE_STANDBY, STATE_STARTING = 0, 1, 5, 9
 
+PREF_TARGET = 1           # experimental: training goal shown by the belt
 PREF_MAX_SPEED = 3
 PREF_START_SPEED = 4
 PREF_START_INTEL = 5
 PREF_SENSITIVITY = 6  # 1 = high, 2 = medium, 3 = low
+PREF_DISPLAY = 7          # experimental: bit mask of the values on the belt display
+PREF_UNITS = 8            # experimental: 1 = miles on the belt display
 PREF_CHILD_LOCK = 9
+
+TARGET_TYPES = {"none": 0, "distance": 1, "calories": 2, "time": 3}
 
 MIN_SPEED, MAX_SPEED = 0.5, 6.0  # km/h
 
@@ -47,9 +52,14 @@ def cmd_start() -> bytes:
     return frame(0xA2, 0x04, 0x01)
 
 
-def cmd_set_pref(key: int, value: int) -> bytes:
+def cmd_set_pref(key: int, value: int, stype: int = 0) -> bytes:
     value = int(value)
-    return frame(0xA6, key, 0x00, (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF)
+    return frame(0xA6, key, stype, (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF)
+
+
+def cmd_ask_last_record() -> bytes:
+    """Experimental: the belt answers with the summary of its last walk (F8 A7 frame)."""
+    return frame(0xA7, 0xAA, 0xFF)
 
 
 def parse_status(data: bytes) -> dict | None:
@@ -64,6 +74,21 @@ def parse_status(data: bytes) -> dict | None:
         "dist": int.from_bytes(data[8:11], "big"),     # units of 10 m
         "steps": int.from_bytes(data[11:14], "big"),   # belt step counter
         "button": data[16],
+    }
+
+
+def parse_last_record(data: bytes) -> dict | None:
+    """Experimental: summary of the last walk stored in the belt (F8 A7 ...), or None.
+
+    Offsets as in ph4-walkingpad: time 8..10, distance 11..13 (10 m units), steps 14..16.
+    """
+    if len(data) < 17 or data[0] != 0xF8 or data[1] != 0xA7:
+        return None
+    return {
+        "time": int.from_bytes(data[8:11], "big"),
+        "dist": int.from_bytes(data[11:14], "big"),
+        "steps": int.from_bytes(data[14:17], "big"),
+        "raw": data.hex(" "),
     }
 
 
@@ -98,4 +123,20 @@ def pref_frame(name: str, value):
     if name in ("start_speed", "max_speed"):
         value = clamp_speed(value)
         return value, cmd_set_pref(PREF_START_SPEED if name == "start_speed" else PREF_MAX_SPEED, round(value * 10))
+    if name == "units_miles":
+        if not isinstance(value, bool):
+            raise CommandError("err_invalid_value")
+        return value, cmd_set_pref(PREF_UNITS, int(value))
+    if name == "display":
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 127:
+            raise CommandError("err_invalid_value")
+        return value, cmd_set_pref(PREF_DISPLAY, value)
+    if name == "target":
+        if not isinstance(value, dict) or value.get("type") not in TARGET_TYPES:
+            raise CommandError("err_invalid_value")
+        amount = value.get("value", 0)
+        if isinstance(amount, bool) or not isinstance(amount, int) or not 0 <= amount <= 0xFFFFFF:
+            raise CommandError("err_invalid_value")
+        clean = {"type": value["type"], "value": amount if value["type"] != "none" else 0}
+        return clean, cmd_set_pref(PREF_TARGET, clean["value"], TARGET_TYPES[clean["type"]])
     raise CommandError("err_unknown_setting")

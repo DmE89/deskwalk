@@ -1,6 +1,6 @@
 // Training view: speed ring, tiles, start/stop, speed controls.
 import { cmd } from "./api.js";
-import { $, $$, setPressed, setText, tween } from "./dom.js";
+import { $, $$, setPressed, setText, toast, tween } from "./dom.js";
 import { QUICK, U, clampKmh, fmtDist, hm, hms, ms, nf, speedLimits, timeFmt } from "./format.js";
 import { plural, t } from "./i18n.js";
 import { app, connected, running } from "./state.js";
@@ -164,7 +164,10 @@ export function renderTraining() {
   setText($("#dSessions"), String(td.sessions));
   const m = S.maintenance;
   $("#oilCard").classList.toggle("hidden", !m.oil_due);
-  if (m.oil_due) setText($("#oilText"), t("oil_text", { d: fmtDist(m.since_oil_km, 0), i: fmtDist(m.oil_interval_km, 0) }));
+  if (m.oil_due_reason === "days") setText($("#oilText"), t("oil_text_days", { d: m.days_since_oil, i: m.oil_interval_days }));
+  else if (m.oil_due) setText($("#oilText"), t("oil_text", { d: fmtDist(m.since_oil_km, 0), i: fmtDist(m.oil_interval_km, 0) }));
+  $("#noviceCard").classList.toggle("hidden", !(c && S.novice_limit));
+  $("#noviceUnlock").disabled = !c;
 }
 
 export function initTraining() {
@@ -175,6 +178,10 @@ export function initTraining() {
   $("#meetingBtn").addEventListener("click", () => cmd("meeting"));
   $("#pauseBtn").addEventListener("click", () => cmd("pause"));
   $("#oiledBtn2").addEventListener("click", () => cmd("oiled"));
+  // the novice limit may simply be a max speed of 3 km/h: try to lift it (untested)
+  ["#noviceUnlock", "#noviceUnlock2"].forEach((sel) => $(sel).addEventListener("click", async () => {
+    if (await cmd("pref", { name: "max_speed", value: 6.0 }, true)) toast(t("msg_novice_sent"));
+  }));
   const slider = $("#slider");
   // the slider sends only when released, keyboard changes are sent after a short pause
   slider.addEventListener("pointerdown", () => {

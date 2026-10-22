@@ -29,7 +29,8 @@ DEFAULT_SETTINGS = {
     "apply_on_connect": False,   # send the stored belt preferences after every connect
     "restore_speed": True,       # after start, return to the last speed
     "keep_running": False,       # restart the belt if it stops by itself in manual mode
-    "prefs": {"inteli": None, "sensitivity": None, "child_lock": None, "start_speed": None, "max_speed": None},
+    "prefs": {"inteli": None, "sensitivity": None, "child_lock": None, "start_speed": None, "max_speed": None,
+              "units_miles": None, "display": None, "target": None},
     "weight_kg": 75.0,
     "goal": {"type": "steps", "value": 8000},
     "calibration": [],
@@ -38,6 +39,9 @@ DEFAULT_SETTINGS = {
     "belt_km": 0.0,
     "oil_interval_km": 200.0,
     "oil_last_km": 0.0,
+    "oil_interval_days": 90,     # the manual says: oil every 3 months
+    "oil_last_ts": None,         # set on first start, so the 90 days count from then
+    "last_import": None,         # signature of the last belt record imported as a session
     "programs": DEFAULT_PROGRAMS,
 }
 CONFIG_KEYS = ("auto_reconnect", "apply_on_connect", "restore_speed", "keep_running")

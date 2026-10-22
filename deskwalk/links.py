@@ -60,6 +60,7 @@ class SimBelt:
         self.start_at = None
         self.time = self.dist_m = self.steps = 0.0
         self.prefs = {}
+        self.last_walk = (0, 0, 0)  # time, distance in 10 m, steps of the last finished walk
         self._task = None
 
     def ensure_running(self):
@@ -82,6 +83,8 @@ class SimBelt:
             self.speed = min(self.target, self.speed + 1.0 * dt)
         elif self.speed > self.target:
             self.speed = max(self.target, self.speed - 2.0 * dt)
+            if self.speed == 0 and self.time:
+                self.last_walk = (int(self.time), int(self.dist_m / 10), int(self.steps))
         if self.speed > 0:
             self.time += dt
             self.dist_m += self.speed / 3.6 * dt
@@ -94,6 +97,8 @@ class SimBelt:
         kind, sub = data[1], data[2]
         if kind == 0xA2 and sub == 0x00:
             return self.status_frame()
+        if kind == 0xA7 and sub == 0xAA:
+            return self.record_frame()
         if kind == 0xA2 and sub == 0x01:
             self.target = data[3] / 10
             if data[3] == 0:
@@ -110,6 +115,12 @@ class SimBelt:
         elif kind == 0xA6:
             self.prefs[sub] = int.from_bytes(data[4:7], "big")
         return None
+
+    def record_frame(self) -> bytes:
+        seconds, dist, steps = self.last_walk
+        body = bytes([0xF8, 0xA7, 0, 0, 0, 0, 0, 0]) + seconds.to_bytes(3, "big") + dist.to_bytes(3, "big")
+        body += steps.to_bytes(3, "big")
+        return body + bytes([sum(body[1:]) % 256, 0xFD])
 
     def status_frame(self) -> bytes:
         state = STATE_STARTING if self.start_at else (STATE_RUNNING if self.speed > 0 else STATE_STOPPED)

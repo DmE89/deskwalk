@@ -61,6 +61,48 @@ class Frames(unittest.TestCase):
                 p.clamp_speed(bad)
 
 
+class Experimental(unittest.TestCase):
+    def test_frames(self):
+        self.assertEqual(p.cmd_ask_last_record().hex(" "), "f7 a7 aa ff 50 fd")
+        self.assertEqual(p.pref_frame("units_miles", True)[1].hex(" "), "f7 a6 08 00 00 00 01 af fd")
+        self.assertEqual(p.pref_frame("display", 127)[1].hex(" "), "f7 a6 07 00 00 00 7f 2c fd")
+        value, frame = p.pref_frame("target", {"type": "time", "value": 1800})
+        self.assertEqual((value, frame.hex(" ")), ({"type": "time", "value": 1800}, "f7 a6 01 03 00 07 08 b9 fd"))
+        self.assertEqual(p.pref_frame("target", {"type": "none", "value": 5})[0]["value"], 0)
+        for name, bad in (("display", 128), ("display", True), ("units_miles", 1), ("target", {"type": "steps"}),
+                          ("target", {"type": "time", "value": -1}), ("target", "x")):
+            with self.assertRaises(p.CommandError, msg=(name, bad)):
+                p.pref_frame(name, bad)
+
+    def test_parse_record(self):
+        belt = SimBelt()
+        belt.last_walk = (1800, 250, 3000)
+        rec = p.parse_last_record(belt.handle(p.cmd_ask_last_record()))
+        self.assertEqual((rec["time"], rec["dist"], rec["steps"]), (1800, 250, 3000))
+        self.assertIsNone(p.parse_last_record(p.cmd_ask_status()))
+
+    def test_import_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data.json")
+            tracker = SessionTracker(store)
+            session = tracker.import_record({"time": 1800, "dist": 250, "steps": 2900}, 2_000_000.0)
+            self.assertEqual((session["active_s"], session["distance_km"], session["max_speed"]), (1800, 2.5, 5.0))
+            self.assertGreater(session["own_steps"], 3000)
+            self.assertAlmostEqual(store.settings["belt_km"], 2.5)
+            with self.assertRaises(p.CommandError):
+                tracker.import_record({"time": 5, "dist": 0, "steps": 0}, 2_000_000.0)
+
+    def test_oil_by_days(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data.json")
+            tracker = SessionTracker(store)
+            self.assertIsNotNone(store.settings["oil_last_ts"])
+            self.assertFalse(tracker.snapshot()["maintenance"]["oil_due"])
+            store.settings["oil_last_ts"] = time.time() - 91 * 86400
+            m = tracker.snapshot()["maintenance"]
+            self.assertEqual((m["oil_due"], m["oil_due_reason"], m["days_since_oil"]), (True, "days", 91))
+
+
 class Status(unittest.TestCase):
     def test_parse(self):
         data = bytes.fromhex("f8 a2 01 1e 01 000708 00000f 0003e8 00 00 00 00 b7 fd")
@@ -94,6 +136,21 @@ class Status(unittest.TestCase):
         self.assertEqual(counter_deltas({"time": 101, "dist": 10, "steps": 152}, a), {"time": 1, "dist": 0, "steps": 2})
         # the belt started again: counters went down, the new values count in full
         self.assertEqual(counter_deltas({"time": 3, "dist": 0, "steps": 4}, a), {"time": 3, "dist": 0, "steps": 4})
+
+
+class Novice(unittest.TestCase):
+    def test_detects_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data.json")
+            worker = Worker(store, SessionTracker(store), sim=True)
+            worker._commanded = (4.0, time.monotonic() - 10)
+            self.assertTrue(worker._novice_limited(3.0, "manual"))
+            self.assertFalse(worker._novice_limited(3.6, "manual"))
+            self.assertFalse(worker._novice_limited(3.0, "auto"))
+            worker._commanded = (4.0, time.monotonic())        # just sent, the belt is still ramping
+            self.assertFalse(worker._novice_limited(3.0, "manual"))
+            worker._commanded = (3.0, time.monotonic() - 10)
+            self.assertFalse(worker._novice_limited(3.0, "manual"))
 
 
 class Queue(unittest.TestCase):
@@ -220,7 +277,19 @@ class WorkerSim(unittest.TestCase):
                                ("delete_calibration", {"index": True})):
                 with self.assertRaises(p.CommandError):
                     worker.call(name, args)
+            # experimental: read the last walk after a stop, import once, refuse a second import
             worker.call("stop", {})
+            deadline = time.time() + 10
+            while worker.snapshot()["belt"]["speed"] > 0 and time.time() < deadline:
+                time.sleep(0.3)
+            worker.tracker.finish()
+            self.assertEqual(worker.call("ask_record", {})["key"], "msg_record_read")
+            self.assertGreater(worker.snapshot()["belt_record"]["time"], 0)
+            worker.state["belt_record"]["time"] = 120
+            worker.state["belt_record"]["dist"] = 10
+            self.assertEqual(worker.call("import_record", {})["key"], "msg_record_imported")
+            with self.assertRaises(p.CommandError):
+                worker.call("import_record", {})
             worker.shutdown()
             self.assertFalse(worker.snapshot()["connected"])
 

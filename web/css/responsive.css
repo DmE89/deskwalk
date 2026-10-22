@@ -53,6 +53,7 @@
   .speed { font-size: clamp(72px, 22vw, 96px); }
   .goal-line { margin-top: var(--s2); }
   /* on a phone the controls come right after the speed, the tiles below */
+  .training > .stack:first-child > .notice-card { order: 0; }
   .training > .stack:first-child > .hero { order: 1; }
   .training > .stack:first-child > .controls { order: 2; }
   .training > .stack:first-child > .tiles { order: 3; }

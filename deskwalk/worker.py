@@ -12,8 +12,8 @@ from collections import deque
 from .fitness import add_calibration, calibration_point
 from .links import BleLink, SimLink
 from .protocol import (MAX_SPEED, MIN_SPEED, MODE_BY_NAME, MODE_MANUAL, MODE_NAMES, STATE_STARTING, CommandError,
-                       clamp_speed, cmd_ask_status, cmd_set_mode, cmd_set_speed, cmd_start, parse_status,
-                       pref_frame)
+                       clamp_speed, cmd_ask_last_record, cmd_ask_status, cmd_set_mode, cmd_set_speed, cmd_start,
+                       parse_last_record, parse_status, pref_frame)
 from .sessions import SessionTracker
 from .store import Store
 
@@ -26,7 +26,10 @@ FIRST_REPLY_TIMEOUT = 5.0
 RECONNECT_DELAYS = [2, 5, 10, 30]
 MAX_AUTO_RESTARTS = 3    # "keep running": at most this many restarts ...
 AUTO_RESTART_WINDOW = 60  # ... within this many seconds
-BELT_COMMANDS = {"start", "stop", "speed", "mode", "pref", "apply_prefs", "meeting", "pause", "program_start"}
+BELT_COMMANDS = {"start", "stop", "speed", "mode", "pref", "apply_prefs", "meeting", "pause", "program_start",
+                 "ask_record"}
+NOVICE_LIMIT = 3.0       # km/h: new belts stay at this speed until unlocked (see the manual)
+NOVICE_AFTER = 8.0       # s after a faster speed command before the hint shows
 COUNTERS = ("time", "dist", "steps")
 
 
@@ -100,7 +103,8 @@ class Worker:
         self.events = deque(maxlen=30)
         self.stats = {"connects": 0, "drops": 0, "connected_since": None, "latency_ms": None, "packets": 0}
         self.state = {"conn": "disconnected", "message": {"key": ""}, "device": None, "belt": None,
-                      "last_status": None, "last_speed": 2.0}
+                      "last_status": None, "last_speed": 2.0, "novice_limit": False, "belt_record": None}
+        self._record_event = None
 
     # thread and queues
     def start(self):
@@ -114,6 +118,7 @@ class Worker:
         self.queue = asyncio.Queue()
         self.belt_queue = asyncio.Queue()
         self._wake = asyncio.Event()
+        self._record_event = asyncio.Event()
         self.ready.set()
         self.loop.run_until_complete(self._main())
 
@@ -426,6 +431,17 @@ class Worker:
         st = parse_status(data)
         if st:
             self._on_status(st)
+            return
+        record = parse_last_record(data)
+        if record:
+            self._set(belt_record={**record, "read_at": time.time()})
+            self._record_event.set()
+
+    def _novice_limited(self, speed, mode) -> bool:
+        """The belt holds 3.0 km/h although a higher speed was sent some seconds ago."""
+        wanted, at = self._commanded
+        return (mode == "manual" and wanted is not None and wanted > NOVICE_LIMIT + 0.05
+                and abs(speed - NOVICE_LIMIT) < 0.05 and time.monotonic() - at > NOVICE_AFTER)
 
     def _on_status(self, st: dict):
         now = time.time()
@@ -441,6 +457,7 @@ class Worker:
             self.state["belt"] = {"state": st["state"], "running": speed > 0, "speed": speed, "mode": mode,
                                   "dev_time": st["time"], "dev_dist": st["dist"] / 100, "dev_steps": st["steps"]}
             self.state["last_status"] = now
+            self.state["novice_limit"] = self._novice_limited(speed, mode)
             if speed > 0 and speed == self._prev_speed:  # two equal readings: not ramping
                 self._stable_speed = speed
                 self.state["last_speed"] = speed
@@ -669,8 +686,33 @@ class Worker:
 
     async def _cmd_oiled(self):
         with self.lock:
-            self.store.update_settings(oil_last_km=self.store.settings["belt_km"])
+            self.store.update_settings(oil_last_km=self.store.settings["belt_km"], oil_last_ts=time.time())
         return {"key": "msg_oiled"}
+
+    # experimental: last walk stored in the belt
+    async def _cmd_ask_record(self):
+        self._require_connected()
+        self._record_event.clear()
+        await self._send(cmd_ask_last_record())
+        try:
+            await asyncio.wait_for(self._record_event.wait(), timeout=4)
+        except asyncio.TimeoutError:
+            raise CommandError("err_no_record")
+        self.event("ev_record_read")
+        return {"key": "msg_record_read"}
+
+    async def _cmd_import_record(self):
+        record = self.state.get("belt_record")
+        if not record:
+            raise CommandError("err_no_record")
+        signature = [record["time"], record["dist"], record["steps"]]
+        with self.lock:
+            if self.store.settings["last_import"] == signature:
+                raise CommandError("err_record_imported")
+            session = self.tracker.import_record(record, time.time())
+            self.store.update_settings(last_import=signature)
+        self.event("ev_record_imported", km=round(session["distance_km"], 2))
+        return {"key": "msg_record_imported"}
 
     # interval programs
     def _program_state(self):

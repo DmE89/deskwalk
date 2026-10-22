@@ -64,6 +64,8 @@ def settings_changes(data: dict) -> dict:
     if "reminder" in data:
         rem = data["reminder"] if isinstance(data["reminder"], dict) else {}
         changes["reminder"] = {"enabled": bool(rem.get("enabled")), "minutes": int(number(rem, "minutes", 5, 600))}
+    if "oil_interval_days" in data:
+        changes["oil_interval_days"] = int(round(number(data, "oil_interval_days", 0, 3650)))
     for key in ("oil_interval_km", "belt_km"):
         if key in data:
             changes[key] = round(number(data, key, 0, 100000), 3)

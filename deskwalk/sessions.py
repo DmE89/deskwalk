@@ -18,7 +18,7 @@ MIN_ACTIVE = 20          # s; shorter sessions without distance are dropped
 SAVE_EVERY = 30          # s between writes of data.json while walking
 
 SUMMARY_FIELDS = ("id", "day", "start_ts", "end_ts", "active_s", "distance_km", "belt_steps", "own_steps",
-                  "calories", "max_speed")
+                  "calories", "max_speed", "imported")
 
 
 def day_of(ts: float) -> str:
@@ -78,6 +78,8 @@ class SessionTracker:
         self._days_cache = None
         closed = [s for s in store.sessions if s.get("end_ts")]
         self.last_walk_ts = max((s["end_ts"] for s in closed), default=None)
+        if store.settings["oil_last_ts"] is None:
+            store.settings["oil_last_ts"] = time.time()  # the time interval starts with the first app start
 
         # only the newest open session can still be running, older ones are closed
         open_sessions = sorted((s for s in store.sessions if s.get("end_ts") is None), key=lambda s: s["start_ts"])
@@ -191,6 +193,35 @@ class SessionTracker:
         s["samples"] = thin_samples([p for p in s["samples"] if p[0] <= offset])
         log.info("Session %s ended: %.2f km, %d s", s["id"], s["distance_km"], s["active_s"])
 
+    def import_record(self, record: dict, now: float) -> dict:
+        """Experimental: store the last walk read from the belt as a closed session.
+
+        The belt record has no start time, so the walk is placed to end now.
+        """
+        if self.current:
+            raise CommandError("err_session_running")
+        seconds = int(record["time"])
+        km = record["dist"] / 100
+        if seconds < MIN_ACTIVE or km <= 0:
+            raise CommandError("err_record_empty")
+        settings = self.store.settings
+        speed = min(6.0, max(0.5, km / (seconds / 3600)))
+        stride = stride_m(speed, settings["calibration"])
+        start = now - seconds
+        session = {"id": self.store.next_id, "day": day_of(start), "start_ts": start, "end_ts": now,
+                   "last_ts": now, "last_running_ts": now, "active_s": seconds, "distance_km": km,
+                   "belt_steps": int(record["steps"]), "own_steps": km * 1000 / stride,
+                   "calories": kcal(speed, float(settings["weight_kg"]), seconds), "max_speed": round(speed, 1),
+                   "dev_time": 0, "dev_dist": 0, "dev_steps": 0, "samples": [], "imported": True}
+        self.store.next_id += 1
+        self.store.sessions.append(session)
+        settings["belt_km"] = round(settings["belt_km"] + km, 3)
+        self._days_cache = None
+        self.last_walk_ts = max(self.last_walk_ts or 0, now)
+        self.store.save()
+        log.info("Imported belt record as session %s: %.2f km, %d s", session["id"], km, seconds)
+        return session
+
     def delete(self, session_id: int) -> bool:
         if self.current and self.current["id"] == session_id:
             raise CommandError("err_session_running")
@@ -252,6 +283,10 @@ class SessionTracker:
         belt_km = settings["belt_km"]
         oil_interval = float(settings["oil_interval_km"])
         since_oil = max(0.0, belt_km - float(settings["oil_last_km"]))
+        oil_days = int(settings["oil_interval_days"])
+        days_since_oil = max(0, int((now - float(settings["oil_last_ts"] or now)) // 86400))
+        due_km = oil_interval > 0 and since_oil >= oil_interval
+        due_days = oil_days > 0 and days_since_oil >= oil_days
         return {
             "session": session,
             "cadence": round(self.cadence),
@@ -264,8 +299,9 @@ class SessionTracker:
             "streak": streaks(days, goal, today),
             "last_walk_ts": self.last_walk_ts,
             "maintenance": {"belt_km": round(belt_km, 2), "oil_interval_km": oil_interval,
-                            "since_oil_km": round(since_oil, 2),
-                            "oil_due": oil_interval > 0 and since_oil >= oil_interval},
+                            "since_oil_km": round(since_oil, 2), "oil_interval_days": oil_days,
+                            "days_since_oil": days_since_oil, "oil_due": due_km or due_days,
+                            "oil_due_reason": "km" if due_km else "days" if due_days else None},
         }
 
     def history(self) -> dict:
@@ -280,7 +316,7 @@ class SessionTracker:
             "days": [{"day": d, "km": round(v["km"], 3), "steps": round(v["steps"]), "kcal": round(v["kcal"]),
                       "seconds": round(v["seconds"]), "sessions": v["sessions"]}
                      for d, v in sorted(days.items()) if d >= since],
-            "sessions": [{k: s[k] for k in SUMMARY_FIELDS} for s in recent],
+            "sessions": [{k: s.get(k) for k in SUMMARY_FIELDS} for s in recent],
             "records": {
                 "longest_session": longest and {k: longest[k] for k in ("start_ts", "active_s", "distance_km")},
                 "best_day": best_day and {"day": best_day["day"], "km": round(best_day["km"], 2),
@@ -302,5 +338,5 @@ class SessionTracker:
             s = next((x for x in self.store.sessions if str(x["id"]) == str(session_id)), None)
         if not s:
             return None
-        return {**{k: s[k] for k in SUMMARY_FIELDS},
+        return {**{k: s.get(k) for k in SUMMARY_FIELDS},
                 "samples": [{"ts": s["start_ts"] + p[0], "speed": p[1] / 10, "cadence": p[2]} for p in s["samples"]]}

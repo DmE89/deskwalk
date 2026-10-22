@@ -126,3 +126,26 @@ td.act .btn { margin-left: 4px; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { border-color: var(--danger); color: var(--danger-text); }
+
+/* help texts that open on demand */
+.help { border-top: 1px solid var(--line); padding: 12px 0 0; margin-top: var(--s2); }
+.help + .help { margin-top: 12px; }
+.help summary { cursor: pointer; font-weight: 600; font-size: 14px; list-style-position: inside; min-height: 32px; display: flex; align-items: center; gap: 8px; }
+.help summary::-webkit-details-marker { display: none; }
+.help summary::before { content: "+"; font-family: var(--mono); color: var(--muted); width: 12px; }
+.help[open] summary::before { content: "-"; }
+.help ol { margin: var(--s1) 0 0; padding-left: 22px; color: var(--muted); font-size: 14px; display: grid; gap: 6px; }
+
+/* error code list */
+.codes { display: grid; grid-template-columns: auto 1fr; gap: 8px var(--s2); margin: var(--s2) 0 0; font-size: 14px; }
+.codes dt { font-family: var(--mono); font-weight: 600; }
+.codes dd { margin: 0; color: var(--muted); }
+
+/* experimental area */
+.experimental { margin-top: var(--s3); border-style: dashed; }
+.bits { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.bits label { display: grid; place-items: center; gap: 2px; min-height: 52px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-family: var(--mono); font-size: 12px; color: var(--muted); cursor: pointer; }
+.bits input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.target-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.notice-card { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); }
+.notice-card .notice svg { color: var(--accent-text); }

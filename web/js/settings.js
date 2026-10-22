@@ -25,6 +25,7 @@ export function fillSettings() {
   $("#remEnabled").checked = st.reminder.enabled;
   $("#remMinutes").value = st.reminder.minutes;
   $("#oilInterval").value = Math.round(U.distOut(st.oil_interval_km));
+  $("#oilDays").value = st.oil_interval_days;
   $("#beltKmInput").value = "";
   $("#beltKmInput").placeholder = nf(U.distOut(st.belt_km), 1);
   const lim = speedLimits();
@@ -67,10 +68,14 @@ export function renderSettingsLive() {
   setText($("#oilSince"), `${nf(U.distOut(m.since_oil_km), 1)} / ${fmtDist(m.oil_interval_km, 0)}`);
   $("#oilMeter").classList.toggle("due", m.oil_due);
   $("#oilMeter i").style.setProperty("--w", `${m.oil_interval_km ? Math.min(100, (m.since_oil_km / m.oil_interval_km) * 100) : 0}%`);
+  setText($("#oilSinceDays"), `${m.days_since_oil} / ${m.oil_interval_days}`);
+  $("#oilMeterDays").classList.toggle("due", m.oil_due_reason === "days");
+  $("#oilMeterDays i").style.setProperty("--w", `${m.oil_interval_days ? Math.min(100, (m.days_since_oil / m.oil_interval_days) * 100) : 0}%`);
   setText($("#strideNow"), t("stride_now", { v: fmtLen(S.stride_m) }));
   const calKey = JSON.stringify(st.calibration) + app.units + app.lang;
   if ($("#calList").dataset.key !== calKey) renderCalibration();
   $("#calOpen").disabled = !c;
+  $("#noviceUnlock2").disabled = !c;
 }
 
 function renderCalibration() {
@@ -183,6 +188,10 @@ export function initSettings({ onLang, onUnits, onTheme }) {
   $("#oilSave").addEventListener("click", () => {
     const v = readNumber($("#oilInterval"));
     if (v !== null) saveSettings({ oil_interval_km: Math.round(U.distIn(v) * 10) / 10 });
+  });
+  $("#oilDaysSave").addEventListener("click", () => {
+    const v = readNumber($("#oilDays"));
+    if (v !== null) saveSettings({ oil_interval_days: Math.round(v) });
   });
   $("#beltKmSave").addEventListener("click", async () => {
     const v = readNumber($("#beltKmInput"));

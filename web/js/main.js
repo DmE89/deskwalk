@@ -9,7 +9,7 @@ import { t, tMsg, translateStatic } from "./i18n.js";
 import { initPrograms, renderProgram, renderProgramList, translatePrograms } from "./programs.js";
 import { checkReminder, fillSettings, initSettings, renderSettingsLive, translateSettings } from "./settings.js";
 import { app, connected, savePref } from "./state.js";
-import { addLogLines, connLabel, initStatus, renderLog, renderStatus } from "./status.js";
+import { addLogLines, connLabel, initStatus, renderLog, renderStatus, translateStatus } from "./status.js";
 import { initTraining, nudge, renderSpeedUi, renderTraining, resetTarget, toggleStartStop, translateTraining } from "./training.js";
 
 const VIEWS = ["training", "history", "records", "programs", "settings", "status"];
@@ -67,6 +67,7 @@ function translateAll() {
   translateHistory();
   translateSettings();
   translatePrograms();
+  translateStatus();
   setText($("#keysHint"), t("keys_hint"));
   renderThemeButton();
   if (app.S) {

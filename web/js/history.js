@@ -116,7 +116,7 @@ function renderSessions() {
     const dur = s.active_s;
     const avg = dur > 0 ? s.distance_km / (dur / 3600) : 0;
     const open = s.end_ts == null;
-    return `<tr><td>${dateFmt(s.start_ts)} <span class="muted num">${timeFmt(s.start_ts)}</span>${open ? `<span class="open-tag">${t("running_tag")}</span>` : ""}</td>
+    return `<tr><td>${dateFmt(s.start_ts)} <span class="muted num">${timeFmt(s.start_ts)}</span>${open ? `<span class="open-tag">${t("running_tag")}</span>` : ""}${s.imported ? `<span class="open-tag muted">${t("imported_tag")}</span>` : ""}</td>
       <td class="n">${hms(dur)}</td><td class="n">${nf(U.distOut(s.distance_km), 2)}</td>
       <td class="n hide-s">${nf(Math.round(s.own_steps))}</td><td class="n hide-s">${nf(Math.round(s.calories))}</td><td class="n hide-s">${nf(U.speedOut(avg), 1)}</td>
       <td class="act"><button type="button" class="btn small" data-export="csv" data-id="${s.id}">${t("export_csv")}</button><button type="button" class="btn small" data-export="tcx" data-id="${s.id}">${t("export_tcx")}</button>${open ? "" : `<button type="button" class="btn small danger" data-del="${s.id}">${t("delete")}</button>`}</td></tr>`;

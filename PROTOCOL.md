@@ -50,6 +50,34 @@ Preference keys used by deskwalk:
 
 The belt does not report its preferences. deskwalk only shows the value it sent last.
 
+## Experimental, not yet tested on the A1 Pro
+
+Known from ph4-walkingpad. deskwalk offers them in the status view, marked as experimental.
+Please report results.
+
+| Command | Payload | Example |
+|---|---|---|
+| Ask for the last walk | `A7 AA FF` | `F7 A7 AA FF 50 FD` |
+| Units on the belt display | `A6 08 00 <0 km, 1 mi>` | miles: `F7 A6 08 00 00 00 01 AF FD` |
+| Values on the belt display | `A6 07 00 <bit mask 0 to 127>` | all: `F7 A6 07 00 00 00 7F 2C FD` |
+| Goal on the belt | `A6 01 <type> <value, 3 bytes>` | type `0` none, `1` distance, `2` calories, `3` time |
+
+Which display bit shows which value, and the unit of the goal value, are not known yet.
+
+New belts stay at 3 km/h until 2 km are walked and the belt is restarted, or until the novice guide
+in the official app is done. The command for that guide is not known. deskwalk tries max speed 6 km/h
+(key `03`), which may or may not lift the limit.
+
+The answer to "ask for the last walk" is a frame starting with `F8 A7`:
+
+```
+offset  0   1   2..7   8..10  11..13  14..16  ...
+        F8  A7  -      time   dist    steps
+```
+
+time in seconds, dist in units of 10 m, steps from the belt counter (offsets as in ph4-walkingpad,
+whose own parser has a bug that drops the record).
+
 ## Status frame (notification on `fe01`)
 
 ```

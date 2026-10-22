@@ -60,6 +60,10 @@
       <h1 class="sr-only" id="h-training" data-i18n="nav_training"></h1>
       <div class="training">
         <div class="stack">
+          <div class="card notice-card hidden" id="noviceCard" role="status">
+            <div class="notice"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-lock"/></svg><p><strong data-i18n="novice_title"></strong> <span data-i18n="novice_text"></span></p></div>
+            <div class="row-gap end"><button type="button" class="btn primary small" id="noviceUnlock" data-i18n="novice_unlock"></button></div>
+          </div>
           <div class="card hero" id="hero">
             <div class="ring-wrap">
               <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
@@ -230,6 +234,11 @@
               <div class="field-head"><label for="maxSpeed" id="lblMaxSpeed"></label><em id="pv-max_speed"></em></div>
               <div class="inline"><input type="number" id="maxSpeed" step="0.1" inputmode="decimal"><button type="button" class="btn" data-send="max_speed" data-input="maxSpeed" data-i18n="send"></button></div>
             </div>
+            <div class="field">
+              <div class="field-head"><strong data-i18n="novice_lock"></strong><em class="badge" data-i18n="untested"></em></div>
+              <p class="hint" data-i18n="novice_lock_hint"></p>
+              <div class="row-gap flush"><button type="button" class="btn" id="noviceUnlock2" data-i18n="novice_unlock"></button></div>
+            </div>
             <div class="row-gap"><button type="button" class="btn" id="applyPrefs" data-i18n="resend_prefs"></button></div>
           </div>
 
@@ -277,9 +286,20 @@
 
           <div class="card">
             <div class="card-head"><h2 class="card-title" data-i18n="maintenance"></h2><span class="hint num" id="beltKm"></span></div>
-            <div class="field first"><div class="field-head"><strong data-i18n="since_oiling"></strong><em class="num" id="oilSince"></em></div><div class="meter" id="oilMeter"><i></i></div></div>
+            <div class="field first"><div class="field-head"><strong data-i18n="since_oiling"></strong><em class="num" id="oilSince"></em></div><div class="meter" id="oilMeter"><i></i></div>
+              <div class="field-head"><span class="hint" data-i18n="since_oiling_days"></span><em class="num" id="oilSinceDays"></em></div><div class="meter" id="oilMeterDays"><i></i></div></div>
             <div class="field"><div class="field-head"><label for="oilInterval" id="lblOil"></label></div>
               <div class="inline"><input type="number" id="oilInterval" min="0" step="10" inputmode="decimal"><button type="button" class="btn" id="oilSave" data-i18n="save"></button></div></div>
+            <div class="field"><div class="field-head"><label for="oilDays" data-i18n="oil_days_lbl"></label></div>
+              <div class="inline"><input type="number" id="oilDays" min="0" max="3650" step="1" inputmode="numeric"><button type="button" class="btn" id="oilDaysSave" data-i18n="save"></button></div></div>
+            <details class="help">
+              <summary data-i18n="howto_oil"></summary>
+              <ol><li data-i18n="oil_step1"></li><li data-i18n="oil_step2"></li><li data-i18n="oil_step3"></li><li data-i18n="oil_step4"></li></ol>
+            </details>
+            <details class="help">
+              <summary data-i18n="howto_adjust"></summary>
+              <ol><li data-i18n="adjust_step1"></li><li data-i18n="adjust_step2"></li><li data-i18n="adjust_step3"></li><li data-i18n="adjust_step4"></li></ol>
+            </details>
             <div class="field"><div class="field-head"><label for="beltKmInput" id="lblBeltKm"></label></div>
               <div class="inline"><input type="number" id="beltKmInput" min="0" step="0.1" inputmode="decimal"><button type="button" class="btn" id="beltKmSave" data-i18n="apply"></button></div></div>
             <div class="row-gap end"><button type="button" class="btn primary" id="oiledBtn" data-i18n="oiled_now"></button></div>
@@ -300,7 +320,48 @@
           </div>
           <div class="card"><div class="card-head"><h2 class="card-title" data-i18n="events"></h2></div><pre class="log wrap" id="events"></pre></div>
         </div>
-        <div class="card"><div class="card-head"><h2 class="card-title" data-i18n="log_title"></h2><span class="hint num">deskwalk.log</span></div><pre class="log" id="log" tabindex="0"></pre></div>
+        <div class="stack">
+          <div class="card"><div class="card-head"><h2 class="card-title" data-i18n="log_title"></h2><span class="hint num">deskwalk.log</span></div><pre class="log" id="log" tabindex="0"></pre></div>
+          <div class="card">
+            <div class="card-head"><h2 class="card-title" data-i18n="error_codes"></h2></div>
+            <p class="hint" data-i18n="error_codes_hint"></p>
+            <dl class="codes" id="errorCodes"></dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="card experimental">
+        <div class="card-head"><h2 class="card-title" data-i18n="experimental"></h2><span class="badge" data-i18n="untested"></span></div>
+        <p class="hint" data-i18n="experimental_hint"></p>
+        <div class="grid2 mt-3">
+          <div class="stack">
+            <div class="field first">
+              <div class="field-head"><strong data-i18n="last_walk"></strong></div>
+              <p class="hint" data-i18n="last_walk_hint"></p>
+              <dl class="kv hidden" id="recordKv"></dl>
+              <div class="row-gap flush"><button type="button" class="btn" id="recordRead" data-i18n="read_from_belt"></button><button type="button" class="btn primary" id="recordImport" data-i18n="import_session" disabled></button></div>
+            </div>
+            <div class="field">
+              <div class="field-head"><strong id="lblMiles" data-i18n="belt_units"></strong><em id="pv-units_miles"></em></div>
+              <div class="seg" data-pref="units_miles" role="group" aria-labelledby="lblMiles"><button type="button" data-value="false">km</button><button type="button" data-value="true">mi</button></div>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="field first">
+              <div class="field-head"><strong data-i18n="belt_display"></strong><em id="pv-display"></em></div>
+              <p class="hint" data-i18n="belt_display_hint"></p>
+              <div class="bits" id="displayBits"></div>
+              <div class="row-gap flush end"><button type="button" class="btn" id="displaySend" data-i18n="send"></button></div>
+            </div>
+            <div class="field">
+              <div class="field-head"><label for="targetType" data-i18n="belt_target"></label><em id="pv-target"></em></div>
+              <p class="hint" data-i18n="belt_target_hint"></p>
+              <div class="inline target-row"><select id="targetType"><option value="none" data-i18n="target_none"></option><option value="distance" data-i18n="distance"></option><option value="calories" data-i18n="calories"></option><option value="time" data-i18n="time"></option></select>
+                <input type="number" id="targetValue" min="0" step="1" inputmode="numeric" data-i18n-aria="target_value"></div>
+              <div class="row-gap flush end"><button type="button" class="btn" id="targetSend" data-i18n="send"></button></div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
     </main>
