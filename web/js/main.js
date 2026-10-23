@@ -31,10 +31,20 @@ function renderShell() {
   setText($("#connText"), connLabel());
   setText($("#modeLabel"), c && belt.mode ? t("mode_" + belt.mode) : "-");
   $("#simBadge").classList.toggle("hidden", !S.simulation);
+  const info = S.device_info;
   if (!c && !S.want_connected) showBanner(t("banner_disconnected"), false, true);
   else if (!c) showBanner(tMsg(S.message), ["error", "waiting"].includes(S.conn), S.conn === "waiting");
   else if (S.stale) showBanner(t("banner_stale"), false, false);
+  else if (belt.state_name === "lock_off") showBanner(t("banner_lock_off"), true, false);
+  else if (belt.error) showBanner(errorText(belt.error), true, false);
+  else if (info && info.firmware_too_old) showBanner(t("banner_firmware_old", { model: info.model, fw: info.firmware }), false, false);
   else showBanner("");
+}
+
+const KNOWN_CODES = [1, 2, 5, 6, 8, 10, 11];
+function errorText(code) {
+  const name = `E${String(code).padStart(2, "0")}`;
+  return t("banner_belt_error", { code: name, text: KNOWN_CODES.includes(code) ? t("code_" + name) : t("code_unknown") });
 }
 
 function renderOffline() {

@@ -212,7 +212,7 @@
           </div>
 
           <div class="card">
-            <div class="card-head"><h2 class="card-title" data-i18n="belt"></h2><em class="hint" data-i18n="belt_prefs_hint"></em></div>
+            <div class="card-head"><h2 class="card-title" data-i18n="belt"></h2><em class="hint" id="beltSource"></em></div>
             <div class="field first">
               <div class="field-head"><strong id="lblInteli" data-i18n="smart_start"></strong><em id="pv-inteli"></em></div>
               <div class="seg" data-pref="inteli" role="group" aria-labelledby="lblInteli"><button type="button" data-value="false" data-i18n="off"></button><button type="button" data-value="true" data-i18n="on"></button></div>
@@ -235,6 +235,21 @@
               <div class="inline"><input type="number" id="maxSpeed" step="0.1" inputmode="decimal"><button type="button" class="btn" data-send="max_speed" data-input="maxSpeed" data-i18n="send"></button></div>
             </div>
             <div class="field">
+              <div class="field-head"><strong id="lblMiles" data-i18n="belt_units"></strong><em id="pv-units_miles"></em></div>
+              <div class="seg" data-pref="units_miles" role="group" aria-labelledby="lblMiles"><button type="button" data-value="false" data-i18n="metric"></button><button type="button" data-value="true" data-i18n="imperial"></button></div>
+            </div>
+            <div class="field">
+              <div class="field-head"><strong data-i18n="belt_display"></strong><em id="pv-display"></em></div>
+              <p class="hint" data-i18n="belt_display_hint"></p>
+              <div class="bits" id="displayBits"></div>
+              <div class="row-gap flush end"><button type="button" class="btn" id="displaySend" data-i18n="send"></button></div>
+            </div>
+            <div class="field hidden" id="autoStopField">
+              <div class="field-head"><strong id="lblAutoStop" data-i18n="auto_stop"></strong><em id="pv-auto_stop"></em></div>
+              <div class="seg" data-pref="auto_stop" role="group" aria-labelledby="lblAutoStop"><button type="button" data-value="false" data-i18n="off"></button><button type="button" data-value="true" data-i18n="on"></button></div>
+              <p class="hint" data-i18n="auto_stop_hint"></p>
+            </div>
+            <div class="field">
               <div class="field-head"><strong data-i18n="novice_lock"></strong><em class="badge" data-i18n="untested"></em></div>
               <p class="hint" data-i18n="novice_lock_hint"></p>
               <div class="row-gap flush"><button type="button" class="btn" id="noviceUnlock2" data-i18n="novice_unlock"></button></div>
@@ -245,7 +260,7 @@
           <div class="card">
             <div class="card-head"><h2 class="card-title" data-i18n="behaviour"></h2></div>
             <label class="switch first"><input type="checkbox" data-config="keep_running"><span class="track" aria-hidden="true"></span>
-              <span><b data-i18n="keep_running"></b><small data-i18n="keep_running_hint"></small><small class="danger" data-i18n="keep_running_warn"></small></span></label>
+              <span><b data-i18n="keep_running"></b><small data-i18n="keep_running_hint"></small><small data-i18n="keep_running_warn"></small></span></label>
             <label class="switch"><input type="checkbox" data-config="auto_reconnect"><span class="track" aria-hidden="true"></span>
               <span><b data-i18n="auto_reconnect"></b><small data-i18n="auto_reconnect_hint"></small></span></label>
             <label class="switch"><input type="checkbox" data-config="apply_on_connect"><span class="track" aria-hidden="true"></span>
@@ -334,32 +349,16 @@
         <div class="card-head"><h2 class="card-title" data-i18n="experimental"></h2><span class="badge" data-i18n="untested"></span></div>
         <p class="hint" data-i18n="experimental_hint"></p>
         <div class="grid2 mt-3">
-          <div class="stack">
-            <div class="field first">
-              <div class="field-head"><strong data-i18n="last_walk"></strong></div>
-              <p class="hint" data-i18n="last_walk_hint"></p>
-              <dl class="kv hidden" id="recordKv"></dl>
-              <div class="row-gap flush"><button type="button" class="btn" id="recordRead" data-i18n="read_from_belt"></button><button type="button" class="btn primary" id="recordImport" data-i18n="import_session" disabled></button></div>
-            </div>
-            <div class="field">
-              <div class="field-head"><strong id="lblMiles" data-i18n="belt_units"></strong><em id="pv-units_miles"></em></div>
-              <div class="seg" data-pref="units_miles" role="group" aria-labelledby="lblMiles"><button type="button" data-value="false">km</button><button type="button" data-value="true">mi</button></div>
-            </div>
+          <div class="field first">
+            <div class="field-head"><strong data-i18n="stored_walks"></strong><em class="num" id="recordsAt"></em></div>
+            <p class="hint" data-i18n="stored_walks_hint"></p>
+            <div class="record-list" id="recordList"></div>
+            <div class="row-gap flush"><button type="button" class="btn" id="recordRead" data-i18n="read_from_belt"></button></div>
           </div>
-          <div class="stack">
-            <div class="field first">
-              <div class="field-head"><strong data-i18n="belt_display"></strong><em id="pv-display"></em></div>
-              <p class="hint" data-i18n="belt_display_hint"></p>
-              <div class="bits" id="displayBits"></div>
-              <div class="row-gap flush end"><button type="button" class="btn" id="displaySend" data-i18n="send"></button></div>
-            </div>
-            <div class="field">
-              <div class="field-head"><label for="targetType" data-i18n="belt_target"></label><em id="pv-target"></em></div>
-              <p class="hint" data-i18n="belt_target_hint"></p>
-              <div class="inline target-row"><select id="targetType"><option value="none" data-i18n="target_none"></option><option value="distance" data-i18n="distance"></option><option value="calories" data-i18n="calories"></option><option value="time" data-i18n="time"></option></select>
-                <input type="number" id="targetValue" min="0" step="1" inputmode="numeric" data-i18n-aria="target_value"></div>
-              <div class="row-gap flush end"><button type="button" class="btn" id="targetSend" data-i18n="send"></button></div>
-            </div>
+          <div class="field first">
+            <div class="field-head"><strong data-i18n="calibration_run"></strong></div>
+            <p class="hint" data-i18n="calibration_run_hint"></p>
+            <div class="row-gap flush"><button type="button" class="btn" id="caliStart" data-i18n="start_calibration"></button><button type="button" class="btn danger" id="caliStop" data-i18n="stop_calibration"></button></div>
           </div>
         </div>
       </div>

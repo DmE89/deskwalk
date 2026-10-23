@@ -11,9 +11,12 @@ from collections import deque
 
 from .fitness import add_calibration, calibration_point
 from .links import BleLink, SimLink
-from .protocol import (MAX_SPEED, MIN_SPEED, MODE_BY_NAME, MODE_MANUAL, MODE_NAMES, STATE_STARTING, CommandError,
-                       clamp_speed, cmd_ask_last_record, cmd_ask_status, cmd_set_mode, cmd_set_speed, cmd_start,
-                       parse_last_record, parse_status, pref_frame)
+from .links import UnsupportedModel
+from .protocol import (BUTTON_STOP, MAX_SPEED, MIN_SPEED, MODE_BY_NAME, MODE_MANUAL, MODE_NAMES, NEW_PROTOCOL,
+                       PREF_CALIBRATION, PREF_PROPS, CommandError, clamp_speed, cmd_ask_props, cmd_ask_records,
+                       cmd_ask_settings, cmd_ask_status, cmd_hello, cmd_set_mode, cmd_set_pref, cmd_set_prop, cmd_set_speed,
+                       cmd_start, cmd_tutorial, frame_type, parse_device_info, parse_error, parse_props,
+                       parse_record, parse_settings, parse_status, pref_frame, record_start_ts, state_name)
 from .sessions import SessionTracker
 from .store import Store
 
@@ -27,7 +30,10 @@ RECONNECT_DELAYS = [2, 5, 10, 30]
 MAX_AUTO_RESTARTS = 3    # "keep running": at most this many restarts ...
 AUTO_RESTART_WINDOW = 60  # ... within this many seconds
 BELT_COMMANDS = {"start", "stop", "speed", "mode", "pref", "apply_prefs", "meeting", "pause", "program_start",
-                 "ask_record"}
+                 "read_records", "calibration_run", "unlock_novice", "read_settings"}
+ACK_TIMEOUT = 1.5        # s: no frame after a command, so it is sent once more (as the official app does)
+MAX_RECORDS = 30         # stored walks read in one go
+TUTORIAL_FINISH = 7
 NOVICE_LIMIT = 3.0       # km/h: new belts stay at this speed until unlocked (see the manual)
 NOVICE_AFTER = 8.0       # s after a faster speed command before the hint shows
 COUNTERS = ("time", "dist", "steps")
@@ -103,8 +109,12 @@ class Worker:
         self.events = deque(maxlen=30)
         self.stats = {"connects": 0, "drops": 0, "connected_since": None, "latency_ms": None, "packets": 0}
         self.state = {"conn": "disconnected", "message": {"key": ""}, "device": None, "belt": None,
-                      "last_status": None, "last_speed": 2.0, "novice_limit": False, "belt_record": None}
-        self._record_event = None
+                      "last_status": None, "last_speed": 2.0, "novice_limit": False,
+                      "device_info": None, "belt_settings": None, "belt_records": None, "belt_error": None,
+                      "unsupported": False}
+        self._rx = None
+        self._waiters = {}
+        self._last_record = None
 
     # thread and queues
     def start(self):
@@ -118,7 +128,7 @@ class Worker:
         self.queue = asyncio.Queue()
         self.belt_queue = asyncio.Queue()
         self._wake = asyncio.Event()
-        self._record_event = asyncio.Event()
+        self._rx = asyncio.Event()
         self.ready.set()
         self.loop.run_until_complete(self._main())
 
@@ -225,12 +235,23 @@ class Worker:
             "stale": age is None or age > 3,
             "link": stats,
             "settings": settings,
-            "limits": {"min": MIN_SPEED, "max": MAX_SPEED},
+            "limits": self._limits(s),
             "meeting": {"active": self.meeting_restore is not None, "restore_speed": self.meeting_restore},
             "paused": {"active": self.paused_speed is not None, "speed": self.paused_speed},
             "program": program,
             "events": events,
         }
+
+    @staticmethod
+    def _limits(state) -> dict:
+        """Speed range: minimum from the device info, maximum from the settings of the belt."""
+        info, prefs = state.get("device_info") or {}, state.get("belt_settings") or {}
+        low = max(MIN_SPEED, info.get("min_speed") or MIN_SPEED)
+        high = min(MAX_SPEED, prefs.get("max_speed") or MAX_SPEED)
+        return {"min": low, "max": max(low, high)}
+
+    def _protocol(self) -> int:
+        return (self.state.get("device_info") or {}).get("protocol") or 0
 
     # main loop
     async def _main(self):
@@ -334,6 +355,40 @@ class Worker:
         finally:
             self._last_cmd = time.monotonic()
 
+    async def _send_acked(self, data: bytes, retry: bool = True):
+        """Send a command. If no frame arrives within ACK_TIMEOUT, send it once more.
+
+        Never retry a toggle (start/pause): sent twice it would start and pause again.
+        """
+        self._rx.clear()
+        await self._send(data)
+        if not retry:
+            return
+        try:
+            await asyncio.wait_for(self._rx.wait(), timeout=ACK_TIMEOUT)
+        except asyncio.TimeoutError:
+            log.info("No answer to %s, sending again", data.hex(" "))
+            await self._send(data)
+
+    async def _request(self, data: bytes, kind: int, timeout=3.0):
+        """Send a request and wait for the answer frame of that type. Returns it or None."""
+        fut = self.loop.create_future()
+        self._waiters.setdefault(kind, []).append(fut)
+        try:
+            await self._send(data)
+            return await asyncio.wait_for(fut, timeout=timeout)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            if fut in self._waiters.get(kind, []):
+                self._waiters[kind].remove(fut)
+
+    async def _read_settings(self):
+        if self._protocol() >= NEW_PROTOCOL:
+            await self._request(cmd_ask_props(*PREF_PROPS.values()), 0xB2)
+        else:
+            await self._request(cmd_ask_settings(), 0xA6)
+
     def _new_link(self):
         cls = SimLink if self.sim else BleLink
         return cls(self._on_data, lambda: self.loop.call_soon_threadsafe(self.lost.set))
@@ -362,6 +417,8 @@ class Worker:
         self.link = link
         try:
             await asyncio.wait_for(link.connect(device), timeout=45)
+            # A5 first, as the official app does: sets the clock of the belt, answer is the device info
+            await self._send(cmd_hello())
             # notifications on fe01 must run: wait for the first status reply. The belt ignores
             # the first request right after subscribing, so ask once per second (see PROTOCOL.md).
             sent = time.time()
@@ -378,6 +435,16 @@ class Worker:
             except BaseException:
                 pass
             raise
+        except UnsupportedModel as exc:
+            self.link = None
+            self._set(conn="error", unsupported=True)
+            self._message("err_unsupported_model", name=str(exc))
+            self.event("err_unsupported_model", logging.ERROR, name=str(exc))
+            try:
+                await asyncio.wait_for(link.disconnect(), timeout=5)
+            except Exception:
+                pass
+            return False
         except Exception as exc:
             self.link = None
             self._set(conn="error")
@@ -399,8 +466,16 @@ class Worker:
         self.event("ev_connected", name=link.name or "WalkingPad")
         if self.tracker.current:
             self.event("ev_session_resumed")
+        if not self.state["device_info"]:
+            await self._request(cmd_hello(), 0xA5, timeout=2.5)
+        info = self.state["device_info"]
+        if info:
+            self.event("ev_device_info", model=info["model"], firmware=info["firmware"], protocol=info["protocol"])
+            if info["firmware_too_old"]:
+                self.event("ev_firmware_old", logging.WARNING, model=info["model"], firmware=info["firmware"])
         if self.store.settings["apply_on_connect"]:
             await self._apply_prefs()
+        await self._read_settings()
         self._last_poll = 0.0
         return True
 
@@ -423,22 +498,59 @@ class Worker:
                 if self.want_connected:
                     self.stats["drops"] += 1
         self._prev_speed = 0.0
+        self._set(device_info=None, belt_settings=None, belt_records=None)
         if was_connected and self.want_connected:
             self.event("ev_connection_lost", logging.WARNING)
 
     # status from the belt (runs in the Bluetooth thread)
     def _on_data(self, data: bytes):
-        st = parse_status(data)
-        if st:
-            self._on_status(st)
-            return
-        record = parse_last_record(data)
-        if record:
-            self._set(belt_record={**record, "read_at": time.time()})
-            self._record_event.set()
+        self._rx.set()
+        kind = frame_type(data)
+        if kind == 0xA2:
+            st = parse_status(data)
+            if st:
+                self._on_status(st)
+        elif kind == 0xA5:
+            info = parse_device_info(data)
+            if info:
+                self._set(device_info=info)
+        elif kind == 0xA6:
+            prefs = parse_settings(data)
+            if prefs:
+                self._set(belt_settings=prefs)
+        elif kind == 0xA7:
+            self._last_record = parse_record(data, self._protocol())
+        elif kind == 0xB2:
+            props = parse_props(data)
+            if props:
+                self._merge_props(props)
+        elif kind == 0xE0:
+            code = parse_error(data)
+            self._set(belt_error={"code": code, "ts": time.time()})
+            self.event("ev_belt_error", logging.WARNING, code=f"E{code:02d}")
+        for fut in self._waiters.pop(kind, []):
+            if not fut.done():
+                fut.set_result(data)
+
+    def _merge_props(self, props: dict):
+        """Properties (protocol 20 and newer) into the same shape as the A6 settings."""
+        with self.lock:
+            prefs = dict(self.state.get("belt_settings") or {})
+            mapping = {"start_type": ("inteli", bool), "sensitivity": ("sensitivity", int),
+                       "child_lock": ("child_lock", bool), "unit": ("units_miles", bool), "panel": ("display", int),
+                       "noload_stop": ("auto_stop", bool), "start_speed": ("start_speed", lambda v: v / 10 or None),
+                       "max_walk": ("max_speed", lambda v: v / 10 or None)}
+            for name, value in props.items():
+                if name in mapping:
+                    key, conv = mapping[name]
+                    prefs[key] = conv(value)
+            self.state["belt_settings"] = prefs
 
     def _novice_limited(self, speed, mode) -> bool:
         """The belt holds 3.0 km/h although a higher speed was sent some seconds ago."""
+        prefs = self.state.get("belt_settings") or {}
+        if prefs.get("max_speed") is not None and prefs["max_speed"] <= NOVICE_LIMIT:
+            return True
         wanted, at = self._commanded
         return (mode == "manual" and wanted is not None and wanted > NOVICE_LIMIT + 0.05
                 and abs(speed - NOVICE_LIMIT) < 0.05 and time.monotonic() - at > NOVICE_AFTER)
@@ -454,7 +566,9 @@ class Worker:
             if self._poll_sent is not None:
                 self.stats["latency_ms"] = round((time.monotonic() - self._poll_sent) * 1000)
                 self._poll_sent = None
-            self.state["belt"] = {"state": st["state"], "running": speed > 0, "speed": speed, "mode": mode,
+            prev_error = (self.state.get("belt") or {}).get("error", 0)
+            self.state["belt"] = {"state": st["state"], "state_name": state_name(st["state"]), "running": speed > 0,
+                                  "speed": speed, "mode": mode, "error": st["error"], "button": st["button"],
                                   "dev_time": st["time"], "dev_dist": st["dist"] / 100, "dev_steps": st["steps"]}
             self.state["last_status"] = now
             self.state["novice_limit"] = self._novice_limited(speed, mode)
@@ -465,13 +579,19 @@ class Worker:
                                 dict(self._last_dev))
             if self._prev_speed == 0 and speed > 0 and self.program:
                 self.program["need_speed"] = True  # back to the segment speed after a stop
-        stopped_by_itself = (self._prev_speed > 0 and speed == 0 and mode != "auto"
-                             and now > self._expect_stop_until)
+        if st["error"] and st["error"] != prev_error:
+            self.event("ev_belt_error", logging.WARNING, code=f"E{st['error']:02d}")
+        stopped = (self._prev_speed > 0 and speed == 0 and mode != "auto" and now > self._expect_stop_until)
         self._prev_speed = speed
-        if stopped_by_itself:
-            self.event("ev_stopped_by_itself", logging.WARNING)
-            if self.store.settings["keep_running"]:
-                self._schedule_restart()
+        if not stopped:
+            return
+        # the remote control reports its last button: a stop from there is wanted, not "by itself"
+        if st["button"] == BUTTON_STOP:
+            self.event("ev_stopped_by_remote")
+            return
+        self.event("ev_stopped_by_itself", logging.WARNING)
+        if self.store.settings["keep_running"]:
+            self._schedule_restart()
 
     def _schedule_restart(self):
         now = time.time()
@@ -497,7 +617,7 @@ class Worker:
         return self._stable_speed or self._belt().get("speed") or self.state["last_speed"]
 
     async def _set_speed(self, speed):
-        await self._send(cmd_set_speed(speed))
+        await self._send_acked(cmd_set_speed(speed))
         self._commanded = (speed, time.monotonic())
 
     async def _poll_until(self, done, seconds) -> bool:
@@ -519,8 +639,10 @@ class Worker:
             if speed:
                 await self._set_speed(speed)
             return {"key": "msg_already_running"}
-        if belt().get("mode") == "standby":
-            await self._send(cmd_set_mode(MODE_MANUAL))
+        if belt().get("mode") in ("standby", "tutorial"):
+            # as the official app: switch to manual first and wait until the belt reports it
+            await self._send_acked(cmd_set_mode(MODE_MANUAL))
+            await self._poll_until(lambda: belt().get("mode") == "manual", 5)
         sent = time.time()
         await self._send(cmd_start())
         self._expect_stop_until = 0
@@ -530,7 +652,7 @@ class Worker:
         # wait for the countdown of the belt (about 3 s): only a fresh status after the start counts
         started = await self._poll_until(
             lambda: (self.state["last_status"] or 0) > sent + 0.3 and belt().get("running")
-            and belt().get("state") != STATE_STARTING, 10)
+            and belt().get("state_name") != "countdown", 10)
         if not started:
             return {"key": "msg_starting"}
         await self._set_speed(speed)
@@ -541,7 +663,7 @@ class Worker:
         self._expect_stop_until = time.time() + 15
         if self.running():
             self._set(last_speed=self._current_speed())
-        await self._send(cmd_set_speed(0))
+        await self._send_acked(cmd_set_speed(0))
 
     async def _apply_prefs(self):
         sent = 0
@@ -549,7 +671,7 @@ class Worker:
             if value is None:
                 continue
             try:
-                await self._send(pref_frame(name, value)[1])
+                await self._send(pref_frame(name, value, self._protocol())[1])
                 sent += 1
             except Exception as exc:
                 log.warning("Preference %s not sent: %s", name, exc)
@@ -586,7 +708,8 @@ class Worker:
         return {"key": "msg_stopping"}
 
     async def _cmd_speed(self, speed):
-        speed = clamp_speed(speed)
+        limits = self._limits(self.state)
+        speed = clamp_speed(speed, limits["min"], limits["max"])
         self._set(last_speed=speed)
         if not self.link or not self.running():
             return {"key": "msg_speed_on_start", "args": {"speed": speed}}
@@ -599,19 +722,28 @@ class Worker:
             raise CommandError("err_invalid_value")
         if mode == "standby":
             self._expect_stop_until = time.time() + 15
-        await self._send(cmd_set_mode(MODE_BY_NAME[mode]))
+        await self._send_acked(cmd_set_mode(MODE_BY_NAME[mode]))
         self.event("ev_mode", mode=mode)
         return {"key": "msg_mode_changed"}
 
     async def _cmd_pref(self, name, value):
-        value, data = pref_frame(name, value)
+        value, data = pref_frame(name, value, self._protocol())
         self._require_connected()
-        await self._send(data)
+        await self._send_acked(data)
         with self.lock:
-            self.store.settings["prefs"][name] = value
-            self.store.save()
+            if name in self.store.settings["prefs"]:
+                self.store.settings["prefs"][name] = value
+                self.store.save()
         self.event("ev_pref", name=name, value=value)
+        await self._read_settings()  # the belt confirms nothing, so read the setting back
         return {"key": "msg_pref_sent"}
+
+    async def _cmd_read_settings(self):
+        self._require_connected()
+        await self._read_settings()
+        if not self.state["belt_settings"]:
+            raise CommandError("err_no_settings")
+        return {"key": "msg_settings_read"}
 
     async def _cmd_apply_prefs(self):
         self._require_connected()
@@ -629,7 +761,8 @@ class Worker:
             return {"key": "msg_back_to", "args": {"speed": speed}}
         if not self.running():
             raise CommandError("err_not_running")
-        meeting = clamp_speed(self.store.settings["meeting_speed"])
+        limits = self._limits(self.state)
+        meeting = clamp_speed(self.store.settings["meeting_speed"], limits["min"], limits["max"])
         self.meeting_restore = self._current_speed()
         await self._set_speed(meeting)
         self.event("ev_meeting_on", speed=meeting)
@@ -689,30 +822,81 @@ class Worker:
             self.store.update_settings(oil_last_km=self.store.settings["belt_km"], oil_last_ts=time.time())
         return {"key": "msg_oiled"}
 
-    # experimental: last walk stored in the belt
-    async def _cmd_ask_record(self):
+    # stored walks in the belt
+    async def _cmd_read_records(self):
+        """Read all stored walks, newest first. Not while the belt runs (the official app forbids it)."""
         self._require_connected()
-        self._record_event.clear()
-        await self._send(cmd_ask_last_record())
-        try:
-            await asyncio.wait_for(self._record_event.wait(), timeout=4)
-        except asyncio.TimeoutError:
-            raise CommandError("err_no_record")
-        self.event("ev_record_read")
-        return {"key": "msg_record_read"}
+        if self.running():
+            raise CommandError("err_belt_running")
+        now, cursor, records, seen = time.time(), 0xFF, [], set()
+        for _ in range(MAX_RECORDS):
+            self._last_record = None
+            if not await self._request(cmd_ask_records(cursor), 0xA7):
+                break
+            rec = self._last_record
+            if not rec or rec["empty"]:
+                break
+            start = record_start_ts(rec, now)
+            signature = f"{rec['time']}-{rec['dist']}-{rec['steps']}-{round(start / 600) if start else 'x'}"
+            if signature in seen:
+                break
+            seen.add(signature)
+            with self.lock:
+                imported = signature in self.store.settings["imported_records"]
+                known = self.tracker.matches_session(start, rec["time"], rec["dist"] / 100)
+            records.append({"time": rec["time"], "dist": rec["dist"], "steps": rec["steps"], "start_ts": start,
+                            "signature": signature, "imported": imported, "known": known, "raw": rec["raw"]})
+            if rec["cursor"] in (cursor, 0):
+                break
+            cursor = rec["cursor"]
+        self._set(belt_records={"read_at": now, "items": records})
+        self.event("ev_records_read", count=len(records))
+        return {"key": "msg_records_read", "args": {"count": len(records)}}
 
-    async def _cmd_import_record(self):
-        record = self.state.get("belt_record")
-        if not record:
+    async def _cmd_import_record(self, signature):
+        listing = self.state.get("belt_records") or {}
+        rec = next((r for r in listing.get("items", []) if r["signature"] == signature), None)
+        if not rec:
             raise CommandError("err_no_record")
-        signature = [record["time"], record["dist"], record["steps"]]
         with self.lock:
-            if self.store.settings["last_import"] == signature:
+            done = self.store.settings["imported_records"]
+            if signature in done or rec["known"]:
                 raise CommandError("err_record_imported")
-            session = self.tracker.import_record(record, time.time())
-            self.store.update_settings(last_import=signature)
+            session = self.tracker.import_record(rec, rec["start_ts"] or time.time() - rec["time"])
+            self.store.update_settings(imported_records=(done + [signature])[-200:])
+            rec["imported"] = True
         self.event("ev_record_imported", km=round(session["distance_km"], 2))
         return {"key": "msg_record_imported"}
+
+    # experimental belt functions
+    async def _cmd_calibration_run(self, on):
+        """Calibration of the belt (A6 key 2). Nobody may stand on the belt."""
+        if not isinstance(on, bool):
+            raise CommandError("err_invalid_value")
+        self._require_connected()
+        if on and self.running():
+            raise CommandError("err_belt_running")
+        self._expect_stop_until = time.time() + 600 if on else time.time() + 15
+        await self._send_acked(cmd_set_pref(PREF_CALIBRATION, int(on)))
+        self.event("ev_calibration_on" if on else "ev_calibration_off")
+        return {"key": "msg_calibration_on" if on else "msg_calibration_off"}
+
+    async def _cmd_unlock_novice(self):
+        """Try to lift the 3 km/h novice limit: finish the novice guide, raise the max speed, read back."""
+        self._require_connected()
+        if self.running():
+            raise CommandError("err_belt_running")
+        if self._protocol() >= NEW_PROTOCOL:
+            await self._send_acked(cmd_set_prop(0x06, TUTORIAL_FINISH))
+        else:
+            await self._send_acked(cmd_tutorial(TUTORIAL_FINISH))
+        await self._send_acked(pref_frame("max_speed", MAX_SPEED, self._protocol())[1])
+        await self._read_settings()
+        prefs = self.state.get("belt_settings") or {}
+        self.event("ev_novice_unlock", max_speed=prefs.get("max_speed"))
+        if prefs.get("max_speed") and prefs["max_speed"] > 3.0:
+            return {"key": "msg_novice_unlocked", "args": {"speed": prefs["max_speed"]}}
+        return {"key": "msg_novice_sent"}
 
     # interval programs
     def _program_state(self):

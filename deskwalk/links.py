@@ -3,8 +3,13 @@
 import asyncio
 import time
 
-from .protocol import (FE01, FE02, MODE_STANDBY, PREF_START_SPEED, STATE_RUNNING, STATE_STARTING,
-                       STATE_STOPPED, is_walkingpad_name)
+from .protocol import (DISPLAY_ALL, FE01, FE02, FTMS, MODE_MANUAL, MODE_STANDBY, MODE_TUTORIAL, PREF_CALIBRATION,
+                       PREF_CHILD_LOCK, PREF_DISPLAY, PREF_MAX_SPEED, PREF_SENSITIVITY, PREF_START_INTEL,
+                       PREF_START_SPEED, PREF_UNITS, is_walkingpad_name)
+
+
+class UnsupportedModel(ConnectionError):
+    """The belt uses another protocol (for example FTMS on the KS-HD-A1P)."""
 
 
 class BleLink:
@@ -17,6 +22,7 @@ class BleLink:
         self.client = None
         self.name = None
         self.address = None
+        self._response = True
 
     async def find(self, address=None):
         from bleak import BleakScanner  # imported here so tests and --sim run without bleak
@@ -36,13 +42,18 @@ class BleLink:
         self.name, self.address = device.name, device.address
         self.client = BleakClient(device, disconnected_callback=lambda _client: self.on_disconnect(), timeout=20.0)
         await self.client.connect()
-        uuids = {c.uuid.lower() for service in self.client.services for c in service.characteristics}
-        if FE01 not in uuids or FE02 not in uuids:
+        services = {service.uuid.lower() for service in self.client.services}
+        chars = {c.uuid.lower(): c for service in self.client.services for c in service.characteristics}
+        if FE01 not in chars or FE02 not in chars:
+            if FTMS in services:
+                raise UnsupportedModel(device.name or "FTMS")
             raise ConnectionError("characteristics fe01/fe02 not found")
+        # as the official app: write without response when the belt allows it
+        self._response = "write-without-response" not in chars[FE02].properties
         await self.client.start_notify(FE01, lambda _sender, data: self.on_data(bytes(data)))
 
     async def write(self, data: bytes):
-        await self.client.write_gatt_char(FE02, data)
+        await self.client.write_gatt_char(FE02, data, response=self._response)
 
     async def disconnect(self):
         if self.client and self.client.is_connected:
@@ -59,8 +70,11 @@ class SimBelt:
         self.speed = self.target = 0.0
         self.start_at = None
         self.time = self.dist_m = self.steps = 0.0
-        self.prefs = {}
-        self.last_walk = (0, 0, 0)  # time, distance in 10 m, steps of the last finished walk
+        self.prefs = {PREF_MAX_SPEED: 60, PREF_START_SPEED: 20, PREF_START_INTEL: 1, PREF_SENSITIVITY: 2,
+                      PREF_DISPLAY: DISPLAY_ALL, PREF_CHILD_LOCK: 0, PREF_UNITS: 0}
+        self.walks = []  # stored walks, newest first: (start_ts, seconds, distance in 10 m, steps)
+        self._walk_start = None
+        self.clock = None
         self._task = None
 
     def ensure_running(self):
@@ -78,13 +92,16 @@ class SimBelt:
     def step(self, dt, now):
         if self.start_at and now >= self.start_at:
             self.start_at = None
+            self._walk_start = time.time()
             self.target = self.prefs.get(PREF_START_SPEED, 20) / 10
         if self.speed < self.target:
             self.speed = min(self.target, self.speed + 1.0 * dt)
         elif self.speed > self.target:
             self.speed = max(self.target, self.speed - 2.0 * dt)
-            if self.speed == 0 and self.time:
-                self.last_walk = (int(self.time), int(self.dist_m / 10), int(self.steps))
+            if self.speed == 0 and self.time and self._walk_start:
+                self.walks.insert(0, (self._walk_start, int(self.time), int(self.dist_m / 10), int(self.steps)))
+                del self.walks[10:]
+                self._walk_start = None
         if self.speed > 0:
             self.time += dt
             self.dist_m += self.speed / 3.6 * dt
@@ -98,7 +115,12 @@ class SimBelt:
         if kind == 0xA2 and sub == 0x00:
             return self.status_frame()
         if kind == 0xA7 and sub == 0xAA:
-            return self.record_frame()
+            return self.record_frame(data[3])
+        if kind == 0xA5:
+            self.clock = int.from_bytes(data[2:6], "big")
+            return self.info_frame()
+        if kind == 0xA6 and sub == 0x00:
+            return self.settings_frame()
         if kind == 0xA2 and sub == 0x01:
             self.target = data[3] / 10
             if data[3] == 0:
@@ -107,23 +129,51 @@ class SimBelt:
             self.mode = data[3]
             if self.mode == MODE_STANDBY:
                 self.target = 0
+        elif kind == 0xA2 and sub == 0x03:
+            self.mode = MODE_TUTORIAL if data[3] < 7 else MODE_MANUAL
         elif kind == 0xA2 and sub == 0x04:
             if self.speed == 0 and not self.start_at:
                 self.time = self.dist_m = self.steps = 0  # the belt resets its counters on start
                 self.start_at = time.monotonic() + self.COUNTDOWN
                 self.target = 0
+        elif kind == 0xA6 and sub == PREF_CALIBRATION:
+            self.target = 4.0 if data[6] else 0.0
         elif kind == 0xA6:
             self.prefs[sub] = int.from_bytes(data[4:7], "big")
-        return None
+            if sub == PREF_MAX_SPEED:
+                self.target = min(self.target, self.prefs[sub] / 10)
+        # the real belt is assumed to answer every command with a status frame (the official app
+        # counts any frame as confirmation)
+        return self.status_frame() if kind in (0xA2, 0xA6) else None
 
-    def record_frame(self) -> bytes:
-        seconds, dist, steps = self.last_walk
-        body = bytes([0xF8, 0xA7, 0, 0, 0, 0, 0, 0]) + seconds.to_bytes(3, "big") + dist.to_bytes(3, "big")
-        body += steps.to_bytes(3, "big")
+    @staticmethod
+    def _finish(body: bytes) -> bytes:
+        body = body.ljust(18, b"\x00")
         return body + bytes([sum(body[1:]) % 256, 0xFD])
 
+    def record_frame(self, cursor: int) -> bytes:
+        """Old firmware layout: counters A and B, then seconds, distance, steps, then the next cursor."""
+        index = 0 if cursor == 0xFF else cursor
+        if index >= len(self.walks):
+            return self._finish(bytes([0xF8, 0xA7]))
+        start, seconds, dist, steps = self.walks[index]
+        age = max(0, int(time.time() - start))  # start = now - A + B with B = 0
+        body = bytes([0xF8, 0xA7]) + age.to_bytes(3, "big") + bytes(3) + seconds.to_bytes(3, "big")
+        body += dist.to_bytes(3, "big") + steps.to_bytes(3, "big") + bytes([index + 1])
+        return self._finish(body)
+
+    def info_frame(self) -> bytes:
+        body = bytes([0xF8, 0xA5, 0]) + b"A1" + bytes([0, 0, 120, 5]) + bytes(6) + bytes([30, 10])
+        return self._finish(body)
+
+    def settings_frame(self) -> bytes:
+        p = self.prefs
+        body = bytes([0xF8, 0xA6, 0, 0, 0, 0, 0, p[PREF_MAX_SPEED], p[PREF_START_SPEED], p[PREF_START_INTEL],
+                      p[PREF_SENSITIVITY], p[PREF_DISPLAY], p[PREF_CHILD_LOCK], p[PREF_UNITS], 60])
+        return self._finish(body)
+
     def status_frame(self) -> bytes:
-        state = STATE_STARTING if self.start_at else (STATE_RUNNING if self.speed > 0 else STATE_STOPPED)
+        state = 9 if self.start_at else (1 if self.speed > 0 else 0)
         body = bytes([0xF8, 0xA2, state, int(round(self.speed * 10)), self.mode])
         body += int(self.time).to_bytes(3, "big") + int(self.dist_m / 10).to_bytes(3, "big")
         body += int(self.steps).to_bytes(3, "big") + bytes([0, 0, 0, 0])

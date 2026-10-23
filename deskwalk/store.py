@@ -41,7 +41,7 @@ DEFAULT_SETTINGS = {
     "oil_last_km": 0.0,
     "oil_interval_days": 90,     # the manual says: oil every 3 months
     "oil_last_ts": None,         # set on first start, so the 90 days count from then
-    "last_import": None,         # signature of the last belt record imported as a session
+    "imported_records": [],      # signatures of stored walks already imported as sessions
     "programs": DEFAULT_PROGRAMS,
 }
 CONFIG_KEYS = ("auto_reconnect", "apply_on_connect", "restore_speed", "keep_running")

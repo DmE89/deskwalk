@@ -10,7 +10,10 @@ Not an official project. No affiliation with Kingsmith or WalkingPad.
 - Start, stop, speed buttons and slider, quick speeds, meeting and pause buttons
 - Sessions with history, daily goal ring, streaks, year heat map and records
 - Interval programs, step calibration, CSV and TCX export
-- Belt settings: smart start/stop, sensitivity, child lock, start and max speed
+- Belt settings read from the belt: smart start/stop, sensitivity, child lock, start and max speed,
+  units and values on the belt display
+- Import of walks stored in the belt, for walks with the remote control only
+- Novice limit hint, error codes, firmware and model info
 - Movement reminder, maintenance counter for oiling
 - English or German, metric or imperial, system, dark or light theme
 - Installable on the phone home screen
@@ -42,7 +45,10 @@ the server accepts only same-origin JSON requests and checks the `Host` header.
 
 Set *Smart start/stop* to *Off* in the settings and walk in manual mode. If the belt still stops,
 *Keep running* restarts it at the last speed (at most 3 times per minute). A stop from the remote
-control then restarts the belt as well, so stop it from the app or with the space bar.
+control is recognised by the button code the belt reports and does not restart it.
+
+Newer firmware (protocol version 20 and up, shown in the status view) has its own *Stop when nobody
+walks* setting, deskwalk shows it in the belt settings then.
 
 ## Keys
 
@@ -90,8 +96,9 @@ tests/
 python3 -m unittest discover -s tests
 ```
 
-The Bluetooth protocol is described in [PROTOCOL.md](PROTOCOL.md). The byte layout comes from
+The Bluetooth protocol is described in [PROTOCOL.md](PROTOCOL.md). The basic frames come from
 [ph4-walkingpad](https://github.com/ph4r05/ph4-walkingpad) by Dusan Klinec (MIT), thank you.
+Device info, settings and stored walks follow a static analysis of the official KS Fit app.
 
 Tested with the A1 Pro on Linux. Reports about other models and systems are welcome.
 

@@ -143,9 +143,12 @@ td.act .btn { margin-left: 4px; }
 
 /* experimental area */
 .experimental { margin-top: var(--s3); border-style: dashed; }
-.bits { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-.bits label { display: grid; place-items: center; gap: 2px; min-height: 52px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-family: var(--mono); font-size: 12px; color: var(--muted); cursor: pointer; }
+.bits { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.bits label { display: grid; place-items: center; gap: 4px; min-height: 56px; padding: 6px 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font-size: 12px; color: var(--muted); cursor: pointer; text-align: center; overflow-wrap: anywhere; }
 .bits input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
-.target-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.record-list { display: grid; gap: var(--s1); }
+.record-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--s2); align-items: center; padding: 12px var(--s2); border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--card-2); }
+.record-item .meta { color: var(--muted); font-size: 13px; font-family: var(--mono); }
+.record-item .tag { color: var(--muted); font-size: 12px; }
 .notice-card { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); }
 .notice-card .notice svg { color: var(--accent-text); }

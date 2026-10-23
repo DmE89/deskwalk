@@ -193,11 +193,19 @@ class SessionTracker:
         s["samples"] = thin_samples([p for p in s["samples"] if p[0] <= offset])
         log.info("Session %s ended: %.2f km, %d s", s["id"], s["distance_km"], s["active_s"])
 
-    def import_record(self, record: dict, now: float) -> dict:
-        """Experimental: store the last walk read from the belt as a closed session.
+    def matches_session(self, start: float | None, seconds: int, km: float) -> bool:
+        """A stored walk of the belt that this app already recorded live (start within 10 min, similar distance)."""
+        if start is None:
+            return False
+        for s in self.store.sessions:
+            if s.get("imported"):
+                continue
+            if abs(s["start_ts"] - start) <= 600 and abs(s["distance_km"] - km) <= max(0.05, km * 0.25):
+                return True
+        return False
 
-        The belt record has no start time, so the walk is placed to end now.
-        """
+    def import_record(self, record: dict, start: float) -> dict:
+        """Store a walk read from the belt as a closed session."""
         if self.current:
             raise CommandError("err_session_running")
         seconds = int(record["time"])
@@ -207,9 +215,9 @@ class SessionTracker:
         settings = self.store.settings
         speed = min(6.0, max(0.5, km / (seconds / 3600)))
         stride = stride_m(speed, settings["calibration"])
-        start = now - seconds
-        session = {"id": self.store.next_id, "day": day_of(start), "start_ts": start, "end_ts": now,
-                   "last_ts": now, "last_running_ts": now, "active_s": seconds, "distance_km": km,
+        end = start + seconds
+        session = {"id": self.store.next_id, "day": day_of(start), "start_ts": start, "end_ts": end,
+                   "last_ts": end, "last_running_ts": end, "active_s": seconds, "distance_km": km,
                    "belt_steps": int(record["steps"]), "own_steps": km * 1000 / stride,
                    "calories": kcal(speed, float(settings["weight_kg"]), seconds), "max_speed": round(speed, 1),
                    "dev_time": 0, "dev_dist": 0, "dev_steps": 0, "samples": [], "imported": True}
@@ -217,7 +225,7 @@ class SessionTracker:
         self.store.sessions.append(session)
         settings["belt_km"] = round(settings["belt_km"] + km, 3)
         self._days_cache = None
-        self.last_walk_ts = max(self.last_walk_ts or 0, now)
+        self.last_walk_ts = max(self.last_walk_ts or 0, end)
         self.store.save()
         log.info("Imported belt record as session %s: %.2f km, %d s", session["id"], km, seconds)
         return session

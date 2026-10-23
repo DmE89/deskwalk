@@ -47,9 +47,18 @@ export const fmtLen = (m) => nf(U.lenOut(m * 100), 1) + " " + U.len();
 
 export const SPEED_MIN = 0.5;
 export const SPEED_MAX = 6.0;
-export const speedLimits = () => (imp() ? { min: 0.3, max: 3.7 } : { min: SPEED_MIN, max: SPEED_MAX });
+// speed range of the connected belt in km/h (minimum from its device info, maximum from its settings)
+const kmhLimits = () => (app.S && app.S.limits ? app.S.limits : { min: SPEED_MIN, max: SPEED_MAX });
+// the same range in the displayed unit, rounded inwards to 0.1
+export function speedLimits() {
+  const { min, max } = kmhLimits();
+  return { min: Math.ceil(U.speedOut(min) * 10 - 1e-6) / 10, max: Math.floor(U.speedOut(max) * 10 + 1e-6) / 10 };
+}
 export const QUICK = { metric: [2, 3, 4, 5], imperial: [1.5, 2, 2.5, 3] };
-export const clampKmh = (v) => Math.round(Math.min(SPEED_MAX, Math.max(SPEED_MIN, v)) * 10) / 10;
+export const clampKmh = (v) => {
+  const { min, max } = kmhLimits();
+  return Math.round(Math.min(max, Math.max(min, v)) * 10) / 10;
+};
 export const round1 = (v) => Math.round(v * 10) / 10;
 
 // Number input that accepts a comma as decimal separator. NaN when empty or invalid.

@@ -11,7 +11,19 @@ const PREF_TEXT = {
   child_lock: (v) => t(v ? "on" : "off").toLowerCase(),
   start_speed: (v) => fmtSpeed(v),
   max_speed: (v) => fmtSpeed(v),
+  units_miles: (v) => t(v ? "imperial" : "metric").toLowerCase(),
+  display: (v) => t("disp_count", { n: DISPLAY_FIELDS.filter((_, i) => v & (1 << i)).length }),
+  auto_stop: (v) => t(v ? "on" : "off").toLowerCase(),
 };
+const DISPLAY_FIELDS = ["time", "speed", "distance", "calories", "steps"];
+
+// value read from the belt if available, otherwise the one sent last
+function beltValue(name) {
+  const read = app.S.belt_settings;
+  if (read && read[name] !== undefined && read[name] !== null) return { value: read[name], read: true };
+  const sent = app.S.settings.prefs[name];
+  return { value: sent ?? null, read: false };
+}
 
 // values from the server into the form (on opening the view and after a unit switch)
 export function fillSettings() {
@@ -46,16 +58,27 @@ export function renderSettingsLive() {
   const c = connected();
   const st = S.settings;
   $$("[data-pref]").forEach((seg) => {
-    const val = st.prefs[seg.dataset.pref];
+    const val = beltValue(seg.dataset.pref).value;
     $$("button", seg).forEach((b) => {
       b.disabled = !c;
       setPressed(b, val !== null && String(val) === b.dataset.value);
     });
   });
   Object.entries(PREF_TEXT).forEach(([k, f]) => {
-    const v = st.prefs[k];
-    setText($(`#pv-${k}`), v == null ? t("pref_unknown") : t("pref_last", { v: f(v) }));
+    const el = $(`#pv-${k}`);
+    if (!el) return;
+    const { value, read } = beltValue(k);
+    setText(el, value == null ? t("pref_unknown") : t(read ? "pref_belt" : "pref_last", { v: f(value) }));
   });
+  setText($("#beltSource"), t(S.belt_settings ? "belt_prefs_read" : "belt_prefs_hint"));
+  $("#autoStopField").classList.toggle("hidden", !(S.device_info && S.device_info.protocol >= 20));
+  const disp = beltValue("display").value;
+  if (!$("#displayBits").dataset.touched) {
+    $$("[data-bit]").forEach((el) => {
+      el.checked = disp == null ? true : !!(disp & (1 << Number(el.dataset.bit)));
+    });
+  }
+  $("#displaySend").disabled = !c;
   $$("[data-send]").forEach((b) => {
     b.disabled = !c;
   });
@@ -75,7 +98,7 @@ export function renderSettingsLive() {
   const calKey = JSON.stringify(st.calibration) + app.units + app.lang;
   if ($("#calList").dataset.key !== calKey) renderCalibration();
   $("#calOpen").disabled = !c;
-  $("#noviceUnlock2").disabled = !c;
+  $("#noviceUnlock2").disabled = !c || running();
 }
 
 function renderCalibration() {
@@ -86,6 +109,8 @@ function renderCalibration() {
 }
 
 export function translateSettings() {
+  $("#displayBits").innerHTML = DISPLAY_FIELDS.map((f, i) => `<label><input type="checkbox" data-bit="${i}" checked>${esc(t("disp_" + f))}</label>`).join("");
+  delete $("#displayBits").dataset.touched;
   setText($("#lblStartSpeed"), t("start_speed_lbl", { unit: U.speed() }));
   setText($("#lblMaxSpeed"), t("max_speed_lbl", { unit: U.speed() }));
   setText($("#lblWeight"), t("weight_lbl", { unit: U.weight() }));
@@ -161,6 +186,18 @@ export function initSettings({ onLang, onUnits, onTheme }) {
     });
   }));
   $("#applyPrefs").addEventListener("click", () => cmd("apply_prefs"));
+  $("#displayBits").addEventListener("change", () => {
+    $("#displayBits").dataset.touched = "1";
+  });
+  $("#displaySend").addEventListener("click", async () => {
+    const mask = $$("[data-bit]").reduce((m, el) => (el.checked ? m | (1 << Number(el.dataset.bit)) : m), 0);
+    if ($$("[data-bit]:checked").length < 3) {
+      toast(t("err_display_fields"), true);
+      return;
+    }
+    if (await cmd("pref", { name: "display", value: mask })) delete $("#displayBits").dataset.touched;
+  });
+  $("#noviceUnlock2").addEventListener("click", () => cmd("unlock_novice"));
   $$("[data-config]").forEach((el) => el.addEventListener("change", () => saveSettings({ [el.dataset.config]: el.checked }, true)));
   $$("#goalType button").forEach((b) => b.addEventListener("click", () => {
     $$("#goalType button").forEach((x) => setPressed(x, x === b));
