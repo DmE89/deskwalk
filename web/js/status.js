@@ -66,8 +66,6 @@ function renderRecords() {
   const running = !!(S.belt && S.belt.running);
   $("#recordRead").disabled = !c || running;
   $("#recordRead").title = running ? t("err_belt_running") : "";
-  $("#caliStart").disabled = !c || running;
-  $("#caliStop").disabled = !c;
   const list = S.belt_records;
   setText($("#recordsAt"), list ? timeFmt(list.read_at) : "");
   if (!list) {
@@ -101,6 +99,4 @@ export function initStatus() {
     const b = e.target.closest("[data-import]");
     if (b) cmd("import_record", { signature: b.dataset.import });
   });
-  $("#caliStart").addEventListener("click", () => cmd("calibration_run", { on: true }));
-  $("#caliStop").addEventListener("click", () => cmd("calibration_run", { on: false }));
 }

@@ -376,7 +376,18 @@ class WorkerSim(unittest.TestCase):
             self.assertEqual(worker.call("import_record", {"signature": item["signature"]})["key"], "msg_record_imported")
             with self.assertRaises(p.CommandError):
                 worker.call("import_record", {"signature": item["signature"]})
-            self.assertEqual(worker.call("unlock_novice", {})["key"], "msg_novice_unlocked")
+            # novice guide: mode 3, walk at 3 then 4 km/h, finish (hold time shortened for the test)
+            import deskwalk.worker as wmod
+            wmod.GUIDE_HOLD = 2
+            self.assertEqual(worker.call("guide_start", {})["key"], "msg_guide_started")
+            self.assertEqual(SimLink.belt.mode, p.MODE_TUTORIAL)
+            deadline = time.time() + 40
+            while worker.snapshot()["guide"] and time.time() < deadline:
+                time.sleep(0.5)
+            self.assertIsNone(worker.snapshot()["guide"])
+            self.assertEqual(SimLink.belt.mode, p.MODE_MANUAL)
+            self.assertTrue(any(e["key"] == "ev_guide_done" for e in worker.snapshot()["events"]))
+            wmod.GUIDE_HOLD = 30
             worker.shutdown()
             self.assertFalse(worker.snapshot()["connected"])
 

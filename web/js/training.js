@@ -173,8 +173,16 @@ export function renderTraining() {
   $("#oilCard").classList.toggle("hidden", !m.oil_due);
   if (m.oil_due_reason === "days") setText($("#oilText"), t("oil_text_days", { d: m.days_since_oil, i: m.oil_interval_days }));
   else if (m.oil_due) setText($("#oilText"), t("oil_text", { d: fmtDist(m.since_oil_km, 0), i: fmtDist(m.oil_interval_km, 0) }));
-  $("#noviceCard").classList.toggle("hidden", !(c && S.novice_limit));
-  $("#noviceUnlock").disabled = !c || run;
+  const guide = S.guide;
+  $("#noviceCard").classList.toggle("hidden", !(c && (S.novice_limit || guide)));
+  $("#noviceInfo").classList.toggle("hidden", !!guide);
+  $("#guideBox").classList.toggle("hidden", !guide);
+  if (guide) {
+    const text = guide.phase === "stopping" ? t("guide_stopping")
+      : t("guide_walk", { i: guide.index + 1, n: guide.count, speed: guide.speed, s: Math.max(0, Math.round(guide.hold - guide.held)) });
+    setText($("#guideText"), text);
+    $("#guideMeter").style.setProperty("--w", `${guide.phase === "stopping" ? 100 : (guide.held / guide.hold) * 100}%`);
+  }
 }
 
 export function initTraining() {
@@ -185,7 +193,8 @@ export function initTraining() {
   $("#meetingBtn").addEventListener("click", () => cmd("meeting"));
   $("#pauseBtn").addEventListener("click", () => cmd("pause"));
   $("#oiledBtn2").addEventListener("click", () => cmd("oiled"));
-  $("#noviceUnlock").addEventListener("click", () => cmd("unlock_novice"));
+  $("#noviceUnlock").addEventListener("click", () => cmd("guide_start"));
+  $("#guideCancel").addEventListener("click", () => cmd("guide_cancel"));
   const slider = $("#slider");
   // the slider sends only when released, keyboard changes are sent after a short pause
   slider.addEventListener("pointerdown", () => {

@@ -152,3 +152,4 @@ td.act .btn { margin-left: 4px; }
 .record-item .tag { color: var(--muted); font-size: 12px; }
 .notice-card { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); }
 .notice-card .notice svg { color: var(--accent-text); }
+.row-gap .badge { align-self: center; }

@@ -61,8 +61,16 @@
       <div class="training">
         <div class="stack">
           <div class="card notice-card hidden" id="noviceCard" role="status">
-            <div class="notice"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-lock"/></svg><p><strong data-i18n="novice_title"></strong> <span data-i18n="novice_text"></span></p></div>
-            <div class="row-gap end"><button type="button" class="btn primary small" id="noviceUnlock" data-i18n="novice_unlock"></button></div>
+            <div id="noviceInfo">
+              <div class="notice"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-lock"/></svg><p><strong data-i18n="novice_title"></strong> <span data-i18n="novice_text"></span></p></div>
+              <div class="row-gap end"><button type="button" class="btn primary small" id="noviceUnlock" data-i18n="guide_run"></button></div>
+            </div>
+            <div id="guideBox" class="hidden">
+              <div class="notice"><svg class="i" aria-hidden="true"><use href="assets/icons/icons.svg#i-lock"/></svg><p><strong data-i18n="guide_title"></strong> <span id="guideText"></span></p></div>
+              <div class="meter mt-3"><i id="guideMeter"></i></div>
+              <p class="hint mt-1" data-i18n="guide_remote_hint"></p>
+              <div class="row-gap end"><button type="button" class="btn small" id="guideCancel" data-i18n="cancel"></button></div>
+            </div>
           </div>
           <div class="card hero" id="hero">
             <div class="ring-wrap">
@@ -252,7 +260,7 @@
             <div class="field">
               <div class="field-head"><strong data-i18n="novice_lock"></strong><em class="badge" data-i18n="untested"></em></div>
               <p class="hint" data-i18n="novice_lock_hint"></p>
-              <div class="row-gap flush"><button type="button" class="btn" id="noviceUnlock2" data-i18n="novice_unlock"></button></div>
+              <div class="row-gap flush"><button type="button" class="btn" id="noviceUnlock2" data-i18n="guide_run"></button></div>
             </div>
             <div class="row-gap"><button type="button" class="btn" id="applyPrefs" data-i18n="resend_prefs"></button></div>
           </div>
@@ -314,6 +322,7 @@
             <details class="help">
               <summary data-i18n="howto_adjust"></summary>
               <ol><li data-i18n="adjust_step1"></li><li data-i18n="adjust_step2"></li><li data-i18n="adjust_step3"></li><li data-i18n="adjust_step4"></li></ol>
+              <div class="row-gap"><button type="button" class="btn" id="caliStart" data-i18n="start_calibration"></button><button type="button" class="btn danger" id="caliStop" data-i18n="stop_calibration"></button><span class="badge" data-i18n="untested"></span></div>
             </details>
             <div class="field"><div class="field-head"><label for="beltKmInput" id="lblBeltKm"></label></div>
               <div class="inline"><input type="number" id="beltKmInput" min="0" step="0.1" inputmode="decimal"><button type="button" class="btn" id="beltKmSave" data-i18n="apply"></button></div></div>
@@ -348,17 +357,12 @@
       <div class="card experimental">
         <div class="card-head"><h2 class="card-title" data-i18n="experimental"></h2><span class="badge" data-i18n="untested"></span></div>
         <p class="hint" data-i18n="experimental_hint"></p>
-        <div class="grid2 mt-3">
+        <div class="mt-3">
           <div class="field first">
             <div class="field-head"><strong data-i18n="stored_walks"></strong><em class="num" id="recordsAt"></em></div>
             <p class="hint" data-i18n="stored_walks_hint"></p>
             <div class="record-list" id="recordList"></div>
             <div class="row-gap flush"><button type="button" class="btn" id="recordRead" data-i18n="read_from_belt"></button></div>
-          </div>
-          <div class="field first">
-            <div class="field-head"><strong data-i18n="calibration_run"></strong></div>
-            <p class="hint" data-i18n="calibration_run_hint"></p>
-            <div class="row-gap flush"><button type="button" class="btn" id="caliStart" data-i18n="start_calibration"></button><button type="button" class="btn danger" id="caliStop" data-i18n="stop_calibration"></button></div>
           </div>
         </div>
       </div>

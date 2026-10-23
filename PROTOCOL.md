@@ -51,7 +51,7 @@ checksum = sum(payload bytes) mod 256
 | Stop belt (speed 0) | `A2 01 00` | `F7 A2 01 00 A3 FD` | tested |
 | Start / pause toggle | `A2 04 01` | `F7 A2 04 01 A7 FD` | tested |
 | Set mode | `A2 02 <mode>` | manual: `F7 A2 02 01 A5 FD` | app |
-| Novice guide step | `A2 03 <step>` | finish: `F7 A2 03 07 AC FD` | app |
+| Novice guide step | `A2 03 <step>` | finish: `F7 A2 03 07 AC FD` | app, see below |
 | Clock and device info | `A5 <local time, 4 bytes> 00 00` | | app |
 | Request settings | `A6 00 00 00 00 00` | `F7 A6 00 00 00 00 00 A6 FD` | app |
 | Set preference | `A6 <key> 00 00 00 <value>` | start speed 3.0: `F7 A6 04 00 00 00 1E C8 FD` | app |
@@ -59,7 +59,9 @@ checksum = sum(payload bytes) mod 256
 
 Modes: `0` automatic, `1` manual, `2` standby, `3` novice guide.
 
-`A2 04 01` toggles start and pause. deskwalk stops with speed 0, as ph4-walkingpad does.
+`A2 04 01` toggles start and pause. After a pause the official app expects state `2`. It never sends
+the toggle while the belt stands still in a workout, because that would start it. deskwalk never repeats
+the toggle and stops with speed 0, as ph4-walkingpad does (tested).
 
 The local time in `A5` is Unix seconds plus the time zone offset, big-endian. The last two bytes are the
 user id of the official app, `00 00` without login. The belt stamps its stored walks with this clock.
@@ -99,7 +101,7 @@ offset  0   1   2      3      4     5..7   8..10  11..13  14  15     16      17
 | dist | units of 10 m, 3 bytes big-endian |
 | steps | step counter of the belt, 3 bytes big-endian |
 | error | error code, `0` none (meanings in the manual: E01, E02, E05, E06, E08, E10, E11) |
-| button | last button on the remote: `1` mode, `2` plus, `3` stop, `4` minus, `81` mode long |
+| button | last button on the remote: `1` mode, `2` plus, `3` stop, `4` minus, `81` mode long. Whether the belt resets it to `0` is not tested |
 
 The counters reset when the belt starts. deskwalk adds up the differences, so a reset or a
 dropped connection does not lose distance. A stop with button `3` counts as a stop from the remote
@@ -148,7 +150,9 @@ Protocol version below 20:
 | 14 to 16 | steps |
 | 17 | cursor for the next request |
 
-Start of the walk = now - A + B, as the official app computes it.
+A and B are seconds. Start of the walk = now - A + B, as the official app computes it. The official app
+has no command to delete stored walks. Whether reading deletes them, and how many the belt keeps, is not
+tested yet.
 
 Protocol version 20 and newer: bytes 2 to 5 local start time, 6 to 7 duration, 8 to 9 distance,
 10 to 11 steps, 12 to 15 calories x 10.
@@ -177,11 +181,31 @@ Settings are written as `F7 B3 <length + 1> <id> <value, big-endian> <checksum> 
 
 Auto stop exists only here, not on older firmware.
 
-## Novice limit
+## Novice guide (novice limit)
 
-New belts stay at 3 km/h until 2 km are walked and the belt is restarted, or until the novice guide in
-the official app is done. deskwalk sends the last guide step (`A2 03 07`), sets max speed 6 km/h and
-reads the settings back. Whether that is enough is not tested yet.
+New belts stay at 3 km/h until 2 km are walked and the belt is restarted, or until the novice guide of
+the official app is done. The official app runs the guide like this, deskwalk does the same:
+
+1. `A2 02 03`: mode 3 (novice guide).
+2. `A2 03 01`, start the belt, walk at least 3.0 km/h for 30 s.
+3. `A2 03 03`, walk at least 4.0 km/h for 30 s, then `A2 03 04`.
+4. The automatic part is skipped: `A2 03 05`, `A2 03 06`.
+5. Stop the belt, wait 2 s after standstill, `A2 03 07` (finish), `A2 02 01` (manual).
+
+Cancel: `A2 02 01`. The official app sends no speed during the guide, the user sets it on the remote.
+deskwalk sends 3.0 and 4.0 km/h. Whether the belt accepts speed commands in mode 3 is not tested yet.
+Neither the device info nor the settings show whether the limit is active.
+
+## Calibration run
+
+`A6 02 00 00 00 01` starts the belt centering run, `A6 02 00 00 00 00` ends it. The belt runs on its own
+(probably 4 km/h), nobody may stand on it. The official app shows the adjustment steps and sends the stop
+only when the user taps "Complete". This matches CALI in the manual (Mode and plus on the remote).
+
+## Not available on the classic protocol
+
+According to the official app there is no setting for the beeper, the standby time or the remote
+control layout, and no way to switch off "stop without load" below protocol version 20.
 
 ## Timing
 

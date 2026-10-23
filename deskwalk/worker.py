@@ -30,10 +30,14 @@ RECONNECT_DELAYS = [2, 5, 10, 30]
 MAX_AUTO_RESTARTS = 3    # "keep running": at most this many restarts ...
 AUTO_RESTART_WINDOW = 60  # ... within this many seconds
 BELT_COMMANDS = {"start", "stop", "speed", "mode", "pref", "apply_prefs", "meeting", "pause", "program_start",
-                 "read_records", "calibration_run", "unlock_novice", "read_settings"}
+                 "read_records", "calibration_run", "read_settings", "guide_start", "guide_next", "guide_cancel"}
 ACK_TIMEOUT = 1.5        # s: no frame after a command, so it is sent once more (as the official app does)
 MAX_RECORDS = 30         # stored walks read in one go
-TUTORIAL_FINISH = 7
+MODE_GUIDE = 3
+# novice guide as in the official app: walk 30 s at 3 km/h, then 30 s at 4 km/h, skip the automatic part
+GUIDE_HOLD = 30
+GUIDE_WALKS = [{"speed": 3.0, "begin": 1, "end": None}, {"speed": 4.0, "begin": 3, "end": 4}]
+GUIDE_AUTO_BEGIN, GUIDE_AUTO_END, GUIDE_FINISH = 5, 6, 7
 NOVICE_LIMIT = 3.0       # km/h: new belts stay at this speed until unlocked (see the manual)
 NOVICE_AFTER = 8.0       # s after a faster speed command before the hint shows
 COUNTERS = ("time", "dist", "steps")
@@ -106,6 +110,7 @@ class Worker:
         self.meeting_restore = None
         self.paused_speed = None
         self.program = None
+        self.guide = None
         self.events = deque(maxlen=30)
         self.stats = {"connects": 0, "drops": 0, "connected_since": None, "latency_ms": None, "packets": 0}
         self.state = {"conn": "disconnected", "message": {"key": ""}, "device": None, "belt": None,
@@ -239,6 +244,7 @@ class Worker:
             "meeting": {"active": self.meeting_restore is not None, "restore_speed": self.meeting_restore},
             "paused": {"active": self.paused_speed is not None, "speed": self.paused_speed},
             "program": program,
+            "guide": dict(self.guide) if self.guide else None,
             "events": events,
         }
 
@@ -307,6 +313,7 @@ class Worker:
                 dt, self._last_tick = now - self._last_tick, now
                 with self.lock:
                     self._program_tick(dt)
+                    self._guide_tick(dt)
                     self.tracker.tick(time.time(), connected=self._connected())
             except Exception:
                 log.exception("Error in the ticker")
@@ -498,6 +505,9 @@ class Worker:
                 if self.want_connected:
                     self.stats["drops"] += 1
         self._prev_speed = 0.0
+        if self.guide:
+            self.guide = None
+            self.event("ev_guide_cancelled", logging.WARNING)
         self._set(device_info=None, belt_settings=None, belt_records=None)
         if was_connected and self.want_connected:
             self.event("ev_connection_lost", logging.WARNING)
@@ -548,6 +558,8 @@ class Worker:
 
     def _novice_limited(self, speed, mode) -> bool:
         """The belt holds 3.0 km/h although a higher speed was sent some seconds ago."""
+        if self.guide:
+            return False
         prefs = self.state.get("belt_settings") or {}
         if prefs.get("max_speed") is not None and prefs["max_speed"] <= NOVICE_LIMIT:
             return True
@@ -590,7 +602,7 @@ class Worker:
             self.event("ev_stopped_by_remote")
             return
         self.event("ev_stopped_by_itself", logging.WARNING)
-        if self.store.settings["keep_running"]:
+        if self.store.settings["keep_running"] and not self.guide:
             self._schedule_restart()
 
     def _schedule_restart(self):
@@ -881,22 +893,81 @@ class Worker:
         self.event("ev_calibration_on" if on else "ev_calibration_off")
         return {"key": "msg_calibration_on" if on else "msg_calibration_off"}
 
-    async def _cmd_unlock_novice(self):
-        """Try to lift the 3 km/h novice limit: finish the novice guide, raise the max speed, read back."""
+    # novice guide
+    def _guide_tick(self, dt):
+        g = self.guide
+        if not g or g["phase"] != "walk" or not self._connected():
+            return
+        speed = self._belt().get("speed") or 0
+        if self.running() and speed >= g["speed"] - 0.05:
+            g["held"] = min(GUIDE_HOLD, g["held"] + dt)
+        if g["held"] >= GUIDE_HOLD and not g.get("queued"):
+            g["queued"] = True
+            self.belt_queue.put_nowait(("guide_next", {}, concurrent.futures.Future()))
+
+    async def _send_tutorial(self, step):
+        await self._send_acked(cmd_set_prop(0x06, step) if self._protocol() >= NEW_PROTOCOL else cmd_tutorial(step))
+
+    async def _cmd_guide_start(self):
+        """Novice guide: lifts the 3 km/h limit of new belts. The user walks on the belt."""
         self._require_connected()
+        if self.guide:
+            raise CommandError("err_guide_running")
+        self.program = None
+        self.meeting_restore = self.paused_speed = None
+        await self._send_acked(cmd_set_mode(MODE_GUIDE))
+        walk = GUIDE_WALKS[0]
+        await self._send_tutorial(walk["begin"])
+        self.guide = {"phase": "walk", "index": 0, "count": len(GUIDE_WALKS), "speed": walk["speed"],
+                      "held": 0.0, "hold": GUIDE_HOLD}
+        self.event("ev_guide_started")
         if self.running():
-            raise CommandError("err_belt_running")
-        if self._protocol() >= NEW_PROTOCOL:
-            await self._send_acked(cmd_set_prop(0x06, TUTORIAL_FINISH))
+            await self._set_speed(walk["speed"])
         else:
-            await self._send_acked(cmd_tutorial(TUTORIAL_FINISH))
-        await self._send_acked(pref_frame("max_speed", MAX_SPEED, self._protocol())[1])
+            sent = time.time()
+            await self._send(cmd_start())
+            belt = self._belt
+            await self._poll_until(lambda: (self.state["last_status"] or 0) > sent + 0.3 and belt().get("running")
+                                   and belt().get("state_name") != "countdown", 10)
+            await self._set_speed(walk["speed"])
+        return {"key": "msg_guide_started"}
+
+    async def _cmd_guide_next(self):
+        g = self.guide
+        if not g or g["phase"] != "walk":
+            raise CommandError("err_no_guide")
+        walk = GUIDE_WALKS[g["index"]]
+        if walk["end"] is not None:
+            await self._send_tutorial(walk["end"])
+        if g["index"] + 1 < len(GUIDE_WALKS):
+            nxt = GUIDE_WALKS[g["index"] + 1]
+            await self._send_tutorial(nxt["begin"])
+            g.update(index=g["index"] + 1, speed=nxt["speed"], held=0.0, queued=False)
+            await self._set_speed(nxt["speed"])
+            self.event("ev_guide_step", index=g["index"] + 1, speed=nxt["speed"])
+            return {"key": "msg_ok"}
+        # the automatic part is skipped, as the official app allows it
+        await self._send_tutorial(GUIDE_AUTO_BEGIN)
+        await self._send_tutorial(GUIDE_AUTO_END)
+        g["phase"] = "stopping"
+        await self._stop_belt()
+        await self._poll_until(lambda: not self.running(), 15)
+        await asyncio.sleep(2)  # the official app waits 2 s after the stop
+        await self._send_tutorial(GUIDE_FINISH)
+        await self._send_acked(cmd_set_mode(MODE_MANUAL))
         await self._read_settings()
         prefs = self.state.get("belt_settings") or {}
-        self.event("ev_novice_unlock", max_speed=prefs.get("max_speed"))
-        if prefs.get("max_speed") and prefs["max_speed"] > 3.0:
-            return {"key": "msg_novice_unlocked", "args": {"speed": prefs["max_speed"]}}
-        return {"key": "msg_novice_sent"}
+        self.event("ev_guide_done", max_speed=prefs.get("max_speed"))
+        self.guide = None
+        return {"key": "msg_guide_done"}
+
+    async def _cmd_guide_cancel(self):
+        if not self.guide:
+            raise CommandError("err_no_guide")
+        self.guide = None
+        await self._send_acked(cmd_set_mode(MODE_MANUAL))
+        self.event("ev_guide_cancelled")
+        return {"key": "msg_guide_cancelled"}
 
     # interval programs
     def _program_state(self):

@@ -98,7 +98,9 @@ export function renderSettingsLive() {
   const calKey = JSON.stringify(st.calibration) + app.units + app.lang;
   if ($("#calList").dataset.key !== calKey) renderCalibration();
   $("#calOpen").disabled = !c;
-  $("#noviceUnlock2").disabled = !c || running();
+  $("#noviceUnlock2").disabled = !c || !!S.guide;
+  $("#caliStart").disabled = !c || running();
+  $("#caliStop").disabled = !c;
 }
 
 function renderCalibration() {
@@ -197,7 +199,11 @@ export function initSettings({ onLang, onUnits, onTheme }) {
     }
     if (await cmd("pref", { name: "display", value: mask })) delete $("#displayBits").dataset.touched;
   });
-  $("#noviceUnlock2").addEventListener("click", () => cmd("unlock_novice"));
+  $("#noviceUnlock2").addEventListener("click", async () => {
+    if (await cmd("guide_start")) location.hash = "#training";
+  });
+  $("#caliStart").addEventListener("click", () => cmd("calibration_run", { on: true }));
+  $("#caliStop").addEventListener("click", () => cmd("calibration_run", { on: false }));
   $$("[data-config]").forEach((el) => el.addEventListener("change", () => saveSettings({ [el.dataset.config]: el.checked }, true)));
   $$("#goalType button").forEach((b) => b.addEventListener("click", () => {
     $$("#goalType button").forEach((x) => setPressed(x, x === b));
