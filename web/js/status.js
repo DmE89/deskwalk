@@ -48,6 +48,7 @@ export function renderStatus() {
     [t("st_packets"), nf(L.packets)],
     [t("st_drops"), `${L.connects} / ${L.drops}`],
     [t("st_attempts"), String(S.attempt)],
+    ["deskwalk", S.version || "-"],
   ];
   setHtml($("#statusKv"), rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd title="${esc(v)}">${esc(v)}</dd>`).join(""));
   setText($("#connBtn"), S.want_connected ? t("disconnect") : t("connect"));

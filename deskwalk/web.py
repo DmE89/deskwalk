@@ -18,6 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from . import __version__
 from .protocol import CommandError
 from .sessions import SessionTracker
 from .settings import settings_changes
@@ -69,6 +70,7 @@ class App:
         with self.worker.lock:  # the tracker is changed in the Bluetooth thread under this lock
             state.update(self.tracker.snapshot())
         state["app_started_ts"] = self.started
+        state["version"] = __version__
         return state
 
     def host_allowed(self, host_header: str | None) -> bool:

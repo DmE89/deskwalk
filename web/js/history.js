@@ -6,6 +6,8 @@ import { plural, t } from "./i18n.js";
 import { app } from "./state.js";
 
 let HIST = null;
+const PAGE = 20;
+let shown = PAGE;
 
 export async function loadHistory() {
   const h = await getJSON("/history");
@@ -112,7 +114,7 @@ function renderHeat() {
 }
 
 function renderSessions() {
-  const rows = HIST.sessions.map((s) => {
+  const rows = HIST.sessions.slice(0, shown).map((s) => {
     const dur = s.active_s;
     const avg = dur > 0 ? s.distance_km / (dur / 3600) : 0;
     const open = s.end_ts == null;
@@ -122,6 +124,9 @@ function renderSessions() {
       <td class="act"><button type="button" class="btn small" data-export="csv" data-id="${s.id}">${t("export_csv")}</button><button type="button" class="btn small" data-export="tcx" data-id="${s.id}">${t("export_tcx")}</button>${open ? "" : `<button type="button" class="btn small danger" data-del="${s.id}">${t("delete")}</button>`}</td></tr>`;
   });
   $("#sessionRows").innerHTML = rows.join("") || `<tr><td colspan="7" class="empty">${t("no_sessions")}</td></tr>`;
+  const rest = HIST.sessions.length - shown;
+  $("#moreSessions").classList.toggle("hidden", rest <= 0);
+  setText($("#moreSessions"), t("show_more", { n: Math.min(PAGE, rest) }));
 }
 
 // export, built in the browser (data stays metric)
@@ -190,6 +195,10 @@ export function initHistory() {
     const ex = e.target.closest("[data-export]");
     if (del && armed(del, t("confirm_delete"), t("delete")) && (await cmd("delete_session", { id: Number(del.dataset.del) }))) loadHistory();
     if (ex) exportSession(Number(ex.dataset.id), ex.dataset.export);
+  });
+  $("#moreSessions").addEventListener("click", () => {
+    shown += PAGE;
+    renderSessions();
   });
   new ResizeObserver(renderBars).observe($("#bars"));
 }

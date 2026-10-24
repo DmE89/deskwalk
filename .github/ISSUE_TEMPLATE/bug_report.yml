@@ -1,0 +1,37 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Belt model and Bluetooth name
+      placeholder: "WalkingPad A1 Pro, WalkingPad"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware and protocol version
+      description: Shown in the status view.
+      placeholder: "30 · protocol 10"
+  - type: input
+    id: system
+    attributes:
+      label: System and browser
+      placeholder: "Ubuntu 24.04, Python 3.12, Firefox 131"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log lines
+      description: From the status view or deskwalk.log. Please remove the Bluetooth address of your belt.
+      render: text

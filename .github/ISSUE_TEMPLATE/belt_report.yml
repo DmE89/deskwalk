@@ -1,0 +1,36 @@
+name: Belt test report
+description: Tell us how deskwalk works with your belt, or how an experimental function behaved
+labels: [belt report]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Belt model and Bluetooth name
+      placeholder: "WalkingPad C2, KS-BLC2"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware and protocol version
+      description: Shown in the status view.
+    validations:
+      required: true
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What works?
+      options:
+        - label: Connect and live data
+        - label: Start, stop, speed
+        - label: Settings are read from the belt
+        - label: Smart start/stop off keeps the belt running after stepping off
+        - label: A stop from the remote control is recognised
+        - label: Stored walks can be read
+        - label: Novice guide lifts the 3 km/h limit
+        - label: Calibration run
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything unexpected. Log lines help, please remove the Bluetooth address of your belt.

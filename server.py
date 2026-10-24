@@ -14,6 +14,7 @@ import sys
 import threading
 from pathlib import Path
 
+from deskwalk import __version__
 from deskwalk.logs import setup_logging
 from deskwalk.web import App, lan_ip, make_server
 
@@ -28,6 +29,7 @@ def main():
     parser.add_argument("--port", type=int, default=5000)
     parser.add_argument("--data", default=str(HERE / "data.json"), help="data file (default: data.json)")
     parser.add_argument("--address", help="Bluetooth address of the belt instead of scanning")
+    parser.add_argument("--version", action="version", version=f"deskwalk {__version__}")
     args = parser.parse_args()
 
     if sys.version_info < (3, 10):
@@ -53,7 +55,7 @@ def main():
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGTERM, shutdown)
-    print(f"\n  deskwalk:        http://127.0.0.1:{args.port}", flush=True)
+    print(f"\n  deskwalk {__version__}:  http://127.0.0.1:{args.port}", flush=True)
     ip = lan_ip() if args.host == "0.0.0.0" else None
     if ip:
         print(f"  Phone (Wi-Fi):   http://{ip}:{args.port}", flush=True)
