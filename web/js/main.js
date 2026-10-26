@@ -4,7 +4,7 @@ import { closeCalibration, calibrationOpen, initCalibration } from "./calibratio
 import { drawChart, initChart, liveChart, loadChart } from "./chart.js";
 import { $, $$, ICONS, setPressed, setText } from "./dom.js";
 import { locale } from "./format.js";
-import { initHistory, loadHistory, loadRecords, translateHistory } from "./history.js";
+import { initHistory, liveHistory, loadHistory, loadRecords, translateHistory } from "./history.js";
 import { t, tMsg, translateStatic } from "./i18n.js";
 import { initPrograms, renderProgram, renderProgramList, translatePrograms } from "./programs.js";
 import { checkReminder, fillSettings, initSettings, renderSettingsLive, translateSettings } from "./settings.js";
@@ -67,6 +67,7 @@ function render(state) {
   if (first && app.view === "programs") renderProgramList();
   if (app.view === "settings") renderSettingsLive();
   if (app.view === "status") renderStatus();
+  liveHistory();
   checkReminder();
 }
 setStateHandler(render);

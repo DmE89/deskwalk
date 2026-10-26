@@ -110,7 +110,11 @@ function renderHeat() {
   $("#heat").innerHTML = html;
   setText($("#heatSum"), t("heat_sum", { v: fmtDist(total, 1), n: active, days: t(active === 1 ? "day_dat_one" : "day_dat_other") }));
   const sc = $("#heatScroll");
-  sc.scrollLeft = sc.scrollWidth;
+  // jump to today only on the first render, a live update keeps the scroll position
+  if (!sc.dataset.placed) {
+    sc.scrollLeft = sc.scrollWidth;
+    sc.dataset.placed = "1";
+  }
 }
 
 function renderSessions() {
@@ -162,6 +166,24 @@ async function exportSession(id, kind) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// live update while a session runs: history and records follow the walk every few seconds
+const LIVE_EVERY = 5000;
+let lastLive = 0;
+let lastSessionKey = "";
+export function liveHistory() {
+  if (app.view !== "history" && app.view !== "records") return;
+  const sess = app.S && app.S.session;
+  const key = sess ? `${sess.id}` : "";
+  const ended = lastSessionKey && !key;  // one more update when the session ends
+  lastSessionKey = key;
+  if (!sess && !ended) return;
+  if (!ended && Date.now() - lastLive < LIVE_EVERY) return;
+  if (document.querySelector("#sessionRows [data-armed='1'], #programList [data-armed='1']")) return;  // a delete waits for its confirmation
+  lastLive = Date.now();
+  if (app.view === "history") loadHistory();
+  else loadRecords();
 }
 
 export async function loadRecords() {

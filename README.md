@@ -127,9 +127,16 @@ The reason this project exists. In *Settings*, *Belt*:
 1. Set *Smart start/stop* to *Off*.
 2. Walk in manual mode.
 
-If the belt still stops by itself, switch on *Keep running* under *Behaviour*. deskwalk then
-restarts the belt at the last speed, at most 3 times per minute. A stop from the remote control
-is recognised by the button code the belt reports and does not restart it.
+Some firmware stops the belt without load anyway (seen on an A1 Pro with firmware 32, protocol 0,
+where smart start/stop was off). Two switches under *Behaviour* help:
+
+- *Hold the speed* (experimental): as soon as the belt slows down by itself, deskwalk sends the
+  walking speed again, before the belt stands still. No countdown, the belt dips for a moment.
+- *Keep running*: if the belt stopped anyway, deskwalk restarts it at the last speed, at most
+  3 times per minute. The belt counts down 3 s first.
+
+A stop or minus from the remote control is recognised by the button code the belt reports and is
+not undone.
 
 Newer firmware (protocol version 20 and up, shown in the status view) has its own
 *Stop when nobody walks* setting, deskwalk shows it in the belt settings then.

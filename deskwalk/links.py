@@ -75,6 +75,8 @@ class SimBelt:
         self.walks = []  # stored walks, newest first: (start_ts, seconds, distance in 10 m, steps)
         self._walk_start = None
         self.clock = None
+        self.noload_after = None  # tests: stop by itself this many seconds after the last speed command
+        self._speed_cmd_at = 0.0
         self._task = None
 
     def ensure_running(self):
@@ -90,9 +92,13 @@ class SimBelt:
             self.step(dt, now)
 
     def step(self, dt, now):
+        if (self.noload_after and self.speed > 0 and self.target > 0 and not self.start_at
+                and now - self._speed_cmd_at > self.noload_after):
+            self.target = 0.0  # the firmware stops without load
         if self.start_at and now >= self.start_at:
             self.start_at = None
             self._walk_start = time.time()
+            self._speed_cmd_at = now
             self.target = self.prefs.get(PREF_START_SPEED, 20) / 10
         if self.speed < self.target:
             self.speed = min(self.target, self.speed + 1.0 * dt)
@@ -123,6 +129,7 @@ class SimBelt:
             return self.settings_frame()
         if kind == 0xA2 and sub == 0x01:
             self.target = data[3] / 10
+            self._speed_cmd_at = time.monotonic()
             if data[3] == 0:
                 self.start_at = None
         elif kind == 0xA2 and sub == 0x02:

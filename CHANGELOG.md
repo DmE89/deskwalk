@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- *Hold the speed* (experimental): sends the walking speed again as soon as the belt slows down by
+  itself, for firmware that stops without load even with smart start/stop off.
+- History and records update live while a session runs.
+- The log shows every state change of the belt and every slowdown that the app did not ask for.
+
 ## 1.2.0 (2026-10-24)
 
 - Novice guide like the official app, to lift the 3 km/h limit of new belts.

@@ -29,6 +29,7 @@ DEFAULT_SETTINGS = {
     "apply_on_connect": False,   # send the stored belt preferences after every connect
     "restore_speed": True,       # after start, return to the last speed
     "keep_running": False,       # restart the belt if it stops by itself in manual mode
+    "hold_speed": False,         # experimental: send the speed again as soon as the belt slows down by itself
     "prefs": {"inteli": None, "sensitivity": None, "child_lock": None, "start_speed": None, "max_speed": None,
               "units_miles": None, "display": None, "target": None},
     "weight_kg": 75.0,
@@ -44,7 +45,7 @@ DEFAULT_SETTINGS = {
     "imported_records": [],      # signatures of stored walks already imported as sessions
     "programs": DEFAULT_PROGRAMS,
 }
-CONFIG_KEYS = ("auto_reconnect", "apply_on_connect", "restore_speed", "keep_running")
+CONFIG_KEYS = ("auto_reconnect", "apply_on_connect", "restore_speed", "keep_running", "hold_speed")
 
 SESSION_KEYS = ("id", "day", "start_ts", "end_ts", "last_ts", "last_running_ts", "active_s", "distance_km",
                 "belt_steps", "own_steps", "calories", "max_speed", "dev_time", "dev_dist", "dev_steps", "samples")

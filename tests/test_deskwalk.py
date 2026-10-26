@@ -207,6 +207,45 @@ class Novice(unittest.TestCase):
             self.assertTrue(worker._novice_limited(0.0, "standby"))
 
 
+class HoldSpeed(unittest.TestCase):
+    def test_detection(self):
+        from deskwalk.worker import slowing_by_itself as slow
+        self.assertTrue(slow(2.4, 3.0, 3.0, "manual", 0, False))
+        self.assertFalse(slow(2.9, 3.0, 3.0, "manual", 0, False))    # within the margin
+        self.assertFalse(slow(2.4, 3.0, 2.0, "manual", 0, False))    # the app asked for less
+        self.assertFalse(slow(2.4, 3.0, 3.0, "manual", 4, False))    # minus on the remote
+        self.assertFalse(slow(2.4, 3.0, 3.0, "manual", 3, False))    # stop on the remote
+        self.assertFalse(slow(2.4, 3.0, 3.0, "auto", 0, False))      # automatic mode follows the feet
+        self.assertFalse(slow(2.4, 3.0, 3.0, "manual", 0, True))     # stop or pause from the app
+
+    def test_belt_keeps_running(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data.json")
+            store.settings["hold_speed"] = True
+            worker = Worker(store, SessionTracker(store), sim=True)
+            SimLink.belt = SimBelt()
+            SimLink.belt.noload_after = 3.0
+            worker.start()
+            deadline = time.time() + 10
+            while not worker.snapshot()["connected"] and time.time() < deadline:
+                time.sleep(0.2)
+            worker.call("speed", {"speed": 3.0})
+            worker.call("start", {})
+            seen_zero, was_walking = False, False
+            end = time.time() + 14
+            while time.time() < end:
+                speed = worker.snapshot()["belt"]["speed"]
+                was_walking = was_walking or speed >= 2.9
+                if was_walking and speed == 0:
+                    seen_zero = True
+                time.sleep(0.2)
+            self.assertTrue(was_walking)
+            self.assertFalse(seen_zero)
+            self.assertTrue(any(e["key"] == "ev_hold_speed" for e in worker.snapshot()["events"]))
+            worker.call("stop", {})
+            worker.shutdown()
+
+
 class NoToggleRetry(unittest.TestCase):
     def test_start_is_sent_once_without_answer(self):
         import asyncio

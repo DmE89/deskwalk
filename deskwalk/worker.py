@@ -41,6 +41,9 @@ GUIDE_AUTO_BEGIN, GUIDE_AUTO_END, GUIDE_FINISH = 5, 6, 7
 NOVICE_LIMIT = 3.0       # km/h: new belts stay at this speed until unlocked (see the manual)
 NOVICE_AFTER = 8.0       # s after a faster speed command before the hint shows
 COUNTERS = ("time", "dist", "steps")
+HOLD_MARGIN = 0.15       # km/h below the walking speed that counts as slowing down
+HOLD_EVERY = 1.5         # s between two corrections
+BUTTON_DOWN = 4
 
 
 def merge_speed_commands(items: list) -> list:
@@ -54,6 +57,17 @@ def merge_speed_commands(items: list) -> list:
             continue
         keep.append(it)
     return keep
+
+
+def slowing_by_itself(speed: float, prev: float, target: float | None, mode: str, button: int,
+                      stop_expected: bool) -> bool:
+    """The belt slows down although nobody asked for it (the firmware stops without load).
+
+    A lower speed from the app is excluded through the target (the last sent speed), a press on
+    stop or minus on the remote through the button byte.
+    """
+    return (mode == "manual" and bool(target) and not stop_expected and button not in (BUTTON_STOP, BUTTON_DOWN)
+            and 0 < prev and speed < prev and speed < target - HOLD_MARGIN)
 
 
 def counter_deltas(new: dict, last: dict | None) -> dict:
@@ -104,6 +118,9 @@ class Worker:
         self._stable_speed = None
         self._commanded = (None, 0.0)
         self._restarts = deque()
+        self._last_hold = 0.0
+        self._holding = False
+        self._prev_state = None
         baseline = tracker.device_baseline()
         self._last_dev = baseline or None
         self._last_tick = time.monotonic()
@@ -593,7 +610,21 @@ class Worker:
                 self.program["need_speed"] = True  # back to the segment speed after a stop
         if st["error"] and st["error"] != prev_error:
             self.event("ev_belt_error", logging.WARNING, code=f"E{st['error']:02d}")
-        stopped = (self._prev_speed > 0 and speed == 0 and mode != "auto" and now > self._expect_stop_until)
+        name = state_name(st["state"])
+        if name != self._prev_state:  # for diagnosis: what the belt reports when it stops by itself
+            log.info("Belt state %s -> %s at %.1f km/h, mode %s, button %s", self._prev_state, name, speed, mode,
+                     st["button"])
+            self._prev_state = name
+        stop_expected = now <= self._expect_stop_until
+        if speed < self._prev_speed and not stop_expected:
+            log.info("Belt slower: %.1f -> %.1f km/h, button %s", self._prev_speed, speed, st["button"])
+        target = self._current_speed() if self._prev_speed > 0 else None
+        if (self.store.settings["hold_speed"] and not self.guide and speed > 0
+                and slowing_by_itself(speed, self._prev_speed, target, mode, st["button"], stop_expected)):
+            self._hold(target)
+        elif speed >= (target or 0) - HOLD_MARGIN:
+            self._holding = False
+        stopped = (self._prev_speed > 0 and speed == 0 and mode != "auto" and not stop_expected)
         self._prev_speed = speed
         if not stopped:
             return
@@ -604,6 +635,17 @@ class Worker:
         self.event("ev_stopped_by_itself", logging.WARNING)
         if self.store.settings["keep_running"] and not self.guide:
             self._schedule_restart()
+
+    def _hold(self, target: float):
+        """Send the walking speed again at once, before the belt has slowed down to 0."""
+        now = time.monotonic()
+        if now - self._last_hold < HOLD_EVERY:
+            return
+        self._last_hold = now
+        if not self._holding:
+            self.event("ev_hold_speed", speed=target)
+            self._holding = True
+        self.belt_queue.put_nowait(("speed", {"speed": target}, concurrent.futures.Future()))
 
     def _schedule_restart(self):
         now = time.time()
