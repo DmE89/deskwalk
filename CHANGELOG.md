@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 (2026-10-26)
 
 - *Hold the speed* (experimental): sends the walking speed again as soon as the belt slows down by
   itself, for firmware that stops without load even with smart start/stop off.
